@@ -1,0 +1,8 @@
+---
+title: ''
+output: pdf_document
+---
+
+# Bibliography
+
+This is the bibliography

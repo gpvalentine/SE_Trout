@@ -1,0 +1,9 @@
+# Ignore R system files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Ignore Data and Results folders
+Data
+Results

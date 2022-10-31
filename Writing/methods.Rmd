@@ -1,0 +1,9 @@
+---
+title: ''
+output: pdf_document
+date: "`r Sys.Date()`"
+---
+
+# Methods
+
+This is the methods section
