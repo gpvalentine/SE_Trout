@@ -9,17 +9,17 @@ geometry: "left = 2.5cm, right = 2cm, top = 2cm, bottom = 2cm"
 fontsize: 11pt
 header-includes:
   - \usepackage{float}
+  - \usepackage[left]{lineno}
   - \usepackage{sectsty}
   - \usepackage{paralist}
   - \usepackage{setspace}\spacing{1.5}
   - \usepackage{fancyhdr}
   - \usepackage{lastpage}
   - \usepackage{dcolumn}
-  - \usepackage{natbib}\bibliographystyle{agsm}
-  - \usepackage[nottoc, numbib]{tocbibind}
 linkcolor: blue
-#bibliography: bibliography.bib
+bibliography: bibliography.bib
 csl: apa.csl
+keep_tex: true
 ---
 
 ```{r setup, include=FALSE}

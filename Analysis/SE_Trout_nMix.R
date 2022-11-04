@@ -1,12 +1,10 @@
 # George Valentine
-# Bayesian Spatial Synchrony Analysis v13
+# Bayesian Spatial Synchrony Analysis
 
-# v13 updates:
-  # let tau.beta.covs differ by covariate m
-  # remove hyperparameters mu.beta[b]
-  # add random spatial effect
-  # replace gamma priors for taus with uniform priors for SDs, then calculate variance and then precision
-  # Add posterior predictive check (PPC) to full models
+# Updates from v13:
+  # Remove versioning of model files - now git can take care of it (this would have been v14)
+  # Move into organized project file for writing and version control
+  # save all model objects and results to Analysis and Results folders
 
 # Load required packages
 library(tidyverse)
@@ -18,13 +16,15 @@ library(RColorBrewer) # colors for plotting
 library(MCMCvis)      # For summarizing MCMC outputs
 library(HDInterval)   # For calculating 95% credible intervals
 library(gridExtra)    # For combining plots
+library(here)         # for smart file paths - eliminates exact paths
 
 
 # Load data
 
 # Spatiotemporal Covariate Data
-SE_COMID_temp_covars <- fread("SE_COMID_temp_covars.csv")
-SE_COMID_flow_covars <- fread("SE_COMID_flow_covars.csv")
+SE_COMID_temp_covars <- fread(here("Data", "SE_Trout_COMID_temp_covars.csv"))
+SE_COMID_flow_covars <- fread(here("Data", "SE_Trout_COMID_flow_covars.csv"))
+
 
 # Trout data
 # Set working directory for trout data files
@@ -290,7 +290,7 @@ nSources <- length(unique(p1_YOY$Source))
 # Specify "full" models (includes all environmental covariates) for YOY and adults
 
 ## YOY
-sink("YOY_BKT_nMix_v13_full.jags")
+sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags")
 cat("
 model{
   
@@ -462,9 +462,9 @@ nb <- 25000
 nt <- 1
 
 # Fit Model
-YOY_BKT_nMix_v13_full <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                 parameters.to.save = jags_params,
-                                model.file = "YOY_BKT_nMix_v13_full.jags",
+                                model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags",
                                 n.chains = nc,
                                 n.iter = ni,
                                 n.burnin = nb,
@@ -472,18 +472,11 @@ YOY_BKT_nMix_v13_full <- jagsUI::jags(data = jags_data,
                                 parallel = T,
                                 inits = init_vals)
 
-v13_YOY_full_params <- as.data.frame(YOY_BKT_nMix_v13_full$summary)
-view(v13_YOY_full_params)
-#traceplot(YOY_BKT_nMix_v13_full, parameters = "mu.beta.cov[2]")
-nrow(YOY_BKT_nMix_v13_full$sims.list$p)
-
-
-# Highest density intervals for parameters
-p1_95 <- as.data.frame(MCMCpstr(YOY_BKT_nMix_v13_full, params = "p", func = function(x)hdi(x, 0.95)))
+YOY_BKT_nMix_full_params <- as.data.frame(YOY_BKT_nMix_full$summary)
 
 
 ## Adults
-sink("Adult_BKT_nMix_v13_full.jags")
+sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags")
 cat("
 model{
   
@@ -632,9 +625,9 @@ nb <- 25000
 nt <- 1
 
 # Fit Model
-Adult_BKT_nMix_v13_full <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Adult_BKT_nMix_v13_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -642,10 +635,7 @@ Adult_BKT_nMix_v13_full <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-v13_Adult_full_params <- as.data.frame(Adult_BKT_nMix_v13_full$summary)
-view(v13_Adult_full_params)
-#traceplot(Adult_BKT_nMix_v13_full, parameters = "")
-nrow(Adult_BKT_nMix_v13_full$sims.list$s2.gam)
+Adult_BKT_nMix_full_params <- as.data.frame(Adult_BKT_nMix_full$summary)
 
 ################################
 # Full Models for north vs south regions of SE US
@@ -762,9 +752,9 @@ nb <- 50000
 nt <- 1
 
 # Fit Model
-YOY_BKT_nMix_v13_full_N <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
                                       parameters.to.save = jags_params,
-                                      model.file = "YOY_BKT_nMix_v13_full.jags",
+                                      model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags",
                                       n.chains = nc,
                                       n.iter = ni,
                                       n.burnin = nb,
@@ -772,10 +762,8 @@ YOY_BKT_nMix_v13_full_N <- jagsUI::jags(data = jags_data,
                                       parallel = T,
                                       inits = init_vals)
 
-v13_YOY_full_params_N <- as.data.frame(YOY_BKT_nMix_v13_full_N$summary)
-traceplot(YOY_BKT_nMix_v13_full_N, parameters = "s2.gam[86]")
-MCMCtrace(YOY_BKT_nMix_v13_full_N, params = c("s2.gam[86]", "alpha[91]"), ISB = F, pdf = F, Rhat = T)
-view(v13_YOY_full_params_N)
+YOY_BKT_nMix_full_N_params <- as.data.frame(YOY_BKT_nMix_full_N$summary)
+#MCMCtrace(YOY_BKT_nMix_full_N_params, params = c("s2.gam[86]", "alpha[91]"), ISB = F, pdf = F, Rhat = T)
 
 # SOUTH
 # Bundle data
@@ -824,9 +812,9 @@ nb <- 50000
 nt <- 1
 
 # Fit Model
-YOY_BKT_NMix_v13_full_S <- jagsUI::jags(data = jags_data,
+YOY_BKT_NMix_full_S <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "YOY_BKT_NMix_v13_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/YOY_BKT_NMix_full.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -834,9 +822,7 @@ YOY_BKT_NMix_v13_full_S <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-v13_YOY_full_params_S <- as.data.frame(YOY_BKT_NMix_v13_full_S$summary)
-view(v13_YOY_full_params_S)
-traceplot(YOY_BKT_NMix_v13_full_S, "alpha[16]")
+YOY_BKT_NMix_full_S_params <- as.data.frame(YOY_BKT_NMix_full_S$summary)
 
 ## Adult analysis
 # Models can stay the same, we just subset the data
@@ -888,9 +874,9 @@ nb <- 50000
 nt <- 1
 
 # Fit Model
-Adult_BKT_nMix_v13_full_N <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Adult_BKT_nMix_v13_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -898,7 +884,7 @@ Adult_BKT_nMix_v13_full_N <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-v13_adult_full_params_N <- MCMCsummary(Adult_BKT_nMix_v13_full_N,
+Adult_BKT_nMix_full_N_params <- MCMCsummary(Adult_BKT_nMix_full_N,
                                       HPD = T)
 
 # SOUTH
@@ -948,9 +934,9 @@ nb <- 50000
 nt <- 1
 
 # Fit Model
-Adult_BKT_nMix_v13_full_S <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Adult_BKT_nMix_v13_full.jags",
+                                        model.file = "Data/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -958,12 +944,12 @@ Adult_BKT_nMix_v13_full_S <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-v13_adult_full_params_S <- MCMCsummary(Adult_BKT_nMix_v13_full_S,
+Adult_BKT_nMix_full_S_params <- MCMCsummary(Adult_BKT_nMix_full_S,
                                        HPD = T)
 ################################
 # Partial model with just summer temperature as environmental covariate
 ## YOY
-sink("YOY_BKT_nMix_v13_partialSummTemp.jags")
+sink("YOY_BKT_nMix_partialSummTemp.jags")
 cat("
 model{
   
@@ -1098,9 +1084,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.YOY = N.YOY.inits)
 
 # Fit Model
-YOY_BKT_nMix_v13_partialSummTemp <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "YOY_BKT_nMix_v13_partialSummTemp.jags",
+                                        model.file = "YOY_BKT_nMix_partialSummTemp.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -1108,13 +1094,10 @@ YOY_BKT_nMix_v13_partialSummTemp <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-v13_YOY_partialSummTemp_params <- as.data.frame(YOY_BKT_nMix_v13_partialSummTemp$summary)
-view(v13_YOY_partialSummTemp_params)
-#traceplot(YOY_BKT_nMix_v13_partialSummTemp, parameters = "beta[1]")
-nrow(YOY_BKT_nMix_v13_partialSummTemp$sims.list$s2.gam)
+YOY_BKT_nMix_partialSummTemp_params <- as.data.frame(YOY_BKT_nMix_partialSummTemp$summary)
 
 ## Adult
-sink("Adult_BKT_nMix_v13_partialSummTemp.jags")
+sink("Adult_BKT_nMix_partialSummTemp.jags")
 cat("
 model{
   
@@ -1248,9 +1231,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.adult = N.adult.inits)
 
 # Fit Model
-Adult_BKT_nMix_v13_partialSummTemp <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
                                                    parameters.to.save = jags_params,
-                                                   model.file = "Adult_BKT_nMix_v13_partialSummTemp.jags",
+                                                   model.file = "Adult_BKT_nMix_partialSummTemp.jags",
                                                    n.chains = nc,
                                                    n.iter = ni,
                                                    n.burnin = nb,
@@ -1258,17 +1241,13 @@ Adult_BKT_nMix_v13_partialSummTemp <- jagsUI::jags(data = jags_data,
                                                    parallel = T,
                                                    inits = init_vals)
 
-v13_Adult_partialSummTemp_params <- as.data.frame(Adult_BKT_nMix_v13_partialSummTemp$summary)
-view(v13_Adult_partialSummTemp_params)
-#traceplot(Adult_BKT_nMix_v13_partialSummTemp, parameters = "beta[1]")
-nrow(Adult_BKT_nMix_v13_partialSummTemp$sims.list$s2.gam)
-
+Adult_BKT_nMix_partialSummTemp_params <- as.data.frame(Adult_BKT_nMix_partialSummTemp$summary)
 
 ################################
 # Partial model with just winter flow as environmental covariate
 
 ## YOY
-sink("YOY_BKT_nMix_v13_partialWintFlow.jags")
+sink("YOY_BKT_nMix_partialWintFlow.jags")
 cat("
 model{
   
@@ -1404,9 +1383,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.YOY = N.YOY.inits)
 
 # Fit Model
-YOY_BKT_nMix_v13_partialWintFlow <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parameters.to.save = jags_params,
-                                                   model.file = "YOY_BKT_nMix_v13_partialWintFlow.jags",
+                                                   model.file = "YOY_BKT_nMix_partialWintFlow.jags",
                                                    n.chains = nc,
                                                    n.iter = ni,
                                                    n.burnin = nb,
@@ -1414,13 +1393,10 @@ YOY_BKT_nMix_v13_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parallel = T,
                                                    inits = init_vals)
 
-v13_YOY_partialWintFlow_params <- as.data.frame(YOY_BKT_nMix_v13_partialWintFlow$summary)
-view(v13_YOY_partialWintFlow_params)
-#traceplot(YOY_BKT_nMix_v13_partialWintFlow, parameters = "beta[1]")
-nrow(YOY_BKT_nMix_v13_partialWintFlow$sims.list$s2.gam)
+YOY_BKT_nMix_partialWintFlow_params <- as.data.frame(YOY_BKT_nMix_partialWintFlow$summary)
 
 ## Adult
-sink("Adult_BKT_nMix_v13_partialWintFlow.jags")
+sink("Adult_BKT_nMix_partialWintFlow.jags")
 cat("
 model{
   
@@ -1555,9 +1531,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.adult = N.adult.inits)
 
 # Fit Model
-Adult_BKT_nMix_v13_partialWintFlow <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parameters.to.save = jags_params,
-                                                   model.file = "Adult_BKT_nMix_v13_partialWintFlow.jags",
+                                                   model.file = "Adult_BKT_nMix_partialWintFlow.jags",
                                                    n.chains = nc,
                                                    n.iter = ni,
                                                    n.burnin = nb,
@@ -1565,13 +1541,11 @@ Adult_BKT_nMix_v13_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parallel = T,
                                                    inits = init_vals)
 
-v13_Adult_partialWintFlow_params <- as.data.frame(Adult_BKT_nMix_v13_partialWintFlow$summary)
-view(v13_Adult_partialWintFlow_params)
-#traceplot(Adult_BKT_nMix_v13_partialWintFlow, parameters = "beta[1]")
+Adult_BKT_nMix_partialWintFlow_params <- as.data.frame(Adult_BKT_nMix_partialWintFlow$summary)
 
 ################################
 # Partial model with just spring flow as environmental covariate
-sink("YOY_BKT_nMix_v13_partialSprFlow.jags")
+sink("YOY_BKT_nMix_partialSprFlow.jags")
 cat("
 model{
   
@@ -1707,9 +1681,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.YOY = N.YOY.inits)
 
 # Fit Model
-YOY_BKT_nMix_v13_partialSprFlow <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                 parameters.to.save = jags_params,
-                                                model.file = "YOY_BKT_nMix_v13_partialSprFlow.jags",
+                                                model.file = "YOY_BKT_nMix_partialSprFlow.jags",
                                                 n.chains = nc,
                                                 n.iter = ni,
                                                 n.burnin = nb,
@@ -1717,12 +1691,10 @@ YOY_BKT_nMix_v13_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                 parallel = T,
                                                 inits = init_vals)
 
-v13_YOY_partialSprFlow_params <- as.data.frame(YOY_BKT_nMix_v13_partialSprFlow$summary)
-view(v13_YOY_partialSprFlow_params)
-#traceplot(YOY_BKT_nMix_v13_partialSprFlow, parameters = "beta[1]")
+YOY_BKT_nMix_partialSprFlow_params <- as.data.frame(YOY_BKT_nMix_partialSprFlow$summary)
 
 ## Adult
-sink("Adult_BKT_nMix_v13_partialSprFlow.jags")
+sink("Adult_BKT_nMix_partialSprFlow.jags")
 cat("
 model{
   
@@ -1857,9 +1829,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.adult = N.adult.inits)
 
 # Fit Model
-Adult_BKT_nMix_v13_partialSprFlow <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                   parameters.to.save = jags_params,
-                                                  model.file = "Adult_BKT_nMix_v13_partialSprFlow.jags",
+                                                  model.file = "Adult_BKT_nMix_partialSprFlow.jags",
                                                   n.chains = nc,
                                                   n.iter = ni,
                                                   n.burnin = nb,
@@ -1867,13 +1839,11 @@ Adult_BKT_nMix_v13_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                   parallel = T,
                                                   inits = init_vals)
 
-v13_Adult_partialSprFlow_params <- as.data.frame(Adult_BKT_nMix_v13_partialSprFlow$summary)
-view(v13_Adult_partialSprFlow_params)
-#traceplot(Adult_BKT_nMix_v13_partialSprFlow, parameters = "s2.eps")
+Adult_BKT_nMix_partialSprFlow_params <- as.data.frame(Adult_BKT_nMix_partialSprFlow$summary)
 
 ################################
 # Specify "null" model (no environmental covariates)
-sink("YOY_BKT_nMix_v13_null.jags")
+sink("YOY_BKT_nMix_null.jags")
 cat("
 model{
   
@@ -1991,9 +1961,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.YOY = N.YOY.inits)
 
 # Fit Model
-YOY_BKT_nMix_v13_null <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_null <- jagsUI::jags(data = jags_data,
                                       parameters.to.save = jags_params,
-                                      model.file = "YOY_BKT_nMix_v13_null.jags",
+                                      model.file = "YOY_BKT_nMix_null.jags",
                                       n.chains = nc,
                                       n.iter = ni,
                                       n.burnin = nb,
@@ -2001,13 +1971,10 @@ YOY_BKT_nMix_v13_null <- jagsUI::jags(data = jags_data,
                                       parallel = T,
                                       inits = init_vals)
 
-v13_YOY_null_params <- as.data.frame(YOY_BKT_nMix_v13_null$summary)
-view(v13_YOY_null_params)
-#traceplot(YOY_BKT_nMix_v13_null, parameters = "beta[1]")
-
+YOY_BKT_nMix_null_params <- as.data.frame(YOY_BKT_nMix_null$summary)
 
 ## Adults
-sink("Adult_BKT_nMix_v13_null.jags")
+sink("Adult_BKT_nMix_null.jags")
 cat("
 model{
   
@@ -2122,9 +2089,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              N.adult = N.adult.inits)
 
 # Fit Model
-Adult_BKT_nMix_v13_null <- jagsUI::jags(data = jags_data,
+Adult_BKT_nMix_null <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Adult_BKT_nMix_v13_null.jags",
+                                        model.file = "Adult_BKT_nMix_null.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -2132,42 +2099,24 @@ Adult_BKT_nMix_v13_null <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-v13_Adult_null_params <- as.data.frame(Adult_BKT_nMix_v13_null$summary)
-view(v13_Adult_null_params)
-#traceplot(Adult_BKT_nMix_v13_null, parameters = "beta[1]")
-
-
-###################
-# Save model posterior outputs
-fwrite(v13_YOY_full_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_YOY_full_params.csv")
-fwrite(v13_Adult_full_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_Adult_full_params.csv")
-fwrite(v13_YOY_partialSummTemp_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_YOY_partialSummTemp_params.csv")
-fwrite(v13_Adult_partialSummTemp_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_Adult_partialSummTemp_params.csv")
-fwrite(v13_YOY_partialWintFlow_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_YOY_partialWintFlow_params.csv")
-fwrite(v13_Adult_partialWintFlow_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_Adult_partialWintFlow_params.csv")
-fwrite(v13_YOY_partialSprFlow_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_YOY_partialSprFlow_params.csv")
-fwrite(v13_Adult_partialSprFlow_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_Adult_partialSprFlow_params.csv")
-fwrite(v13_YOY_null_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/v13_YOY_null_params.csv")
-fwrite(v13_Adult_null_params, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Bayesian synchrony model v13 outputs/(v13_Adult_null_params.csv")
+Adult_BKT_nMix_null_params <- as.data.frame(Adult_BKT_nMix_null$summary)
 
 ###################
 ## ICC Values
 # Join site data to ICC values
-YOY_ICCs <- v13_YOY_full_params %>% 
+YOY_ICCs <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
   .[858:1026,] %>% 
   mutate(i = row_number()) %>% 
   cbind(COMID = COMID_data$COMID) %>%
   left_join(SE_Site_Final)
 
-Adult_ICCs <- v13_Adult_full_params %>% 
+Adult_ICCs <- Adult_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
   .[858:1026,] %>% 
   mutate(i = row_number()) %>% 
   cbind(COMID = COMID_data$COMID) %>%
   left_join(SE_Site_Final)
-
-fwrite(YOY_ICCs, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/YOY_ICCs_v13.csv")
 
 # Plot ICC values on a map
 US_states <- map_data("state")
@@ -2190,14 +2139,14 @@ YOY_ICC_map <- ggplot() +
   scale_color_viridis_c() +
   theme_classic()
 
-ggsave("BKT_Nmix_YOY_ICCs_Map.jpg",
-       plot = YOY_ICC_map,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
+# ggsave("BKT_Nmix_YOY_ICCs_Map.jpg",
+#        plot = YOY_ICC_map,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
 
 # Adult
 Adult_ICC_map <- ggplot() +
@@ -2217,14 +2166,14 @@ Adult_ICC_map <- ggplot() +
   scale_color_viridis_c() +
   theme_classic()
 
-ggsave("BKT_Nmix_Adult_ICCs_Map.jpg",
-       plot = Adult_ICC_map,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
+# ggsave("BKT_Nmix_Adult_ICCs_Map.jpg",
+#        plot = Adult_ICC_map,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
 
 # Is ICC correlated with any site-level variables?
 library(corrplot)
@@ -2249,101 +2198,16 @@ Global_Cs <- data.frame(Covariate = c(rep("All", 2),
                                       rep("WintFlow", 2),
                                       rep("SprFlow", 2)),
                         Age_Class = rep(c("YOY", "Adult"), 4),
-                        Global_C = c((1 - (v13_YOY_full_params['s2.eps',1]/v13_YOY_null_params['s2.eps',1])),
-                                     (1 - (v13_Adult_full_params['s2.eps',1]/v13_Adult_null_params['s2.eps',1])),
-                                     (1 - (v13_YOY_partialSummTemp_params['s2.eps',1]/v13_YOY_null_params['s2.eps',1])),
-                                     (1 - (v13_Adult_partialSummTemp_params['s2.eps',1]/v13_Adult_null_params['s2.eps',1])),
-                                     (1 - (v13_YOY_partialWintFlow_params['s2.eps',1]/v13_YOY_null_params['s2.eps',1])),
-                                     (1 - (v13_Adult_partialWintFlow_params['s2.eps',1]/v13_Adult_null_params['s2.eps',1])),
-                                     (1 - (v13_YOY_partialSprFlow_params['s2.eps',1]/v13_YOY_null_params['s2.eps',1])),
-                                     (1 - (v13_Adult_partialSprFlow_params['s2.eps',1]/v13_Adult_null_params['s2.eps',1]))))
+                        Global_C = c((1 - (YOY_BKT_nMix_full_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (Adult_BKT_nMix_full_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (YOY_BKT_nMix_partialSummTemp_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (Adult_BKT_nMix_partialSummTemp_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (YOY_BKT_nMix_partialWintFlow_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (Adult_BKT_nMix_partialWintFlow_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (YOY_BKT_nMix_partialSprFlow_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
+                                     (1 - (Adult_BKT_nMix_partialSprFlow_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1]))))
 
-## Calculate 95% HDPIs on global C values
-# # Get number of iterations in posterior distributions
-# n.it <- length(YOY_BKT_nMix_v13_full$sims.list$s2.eps)
-# 
-# # Create an empty dataframe that stores posterior distributions for overall C values
-# C_Vals <- data.frame(C_YOY_allCovs = numeric(),
-#                      C_Adult_allCovs = numeric(),
-#                      C_YOY_partialSummTemp = numeric(),
-#                      C_Adult_partialSummTemp = numeric(),
-#                      C_YOY_partialWintFlow = numeric(),
-#                      C_Adult_partialWintFlow = numeric(),
-#                      C_YOY_partialSprFlow = numeric(),
-#                      C_Adult_partialSprFlow = numeric())
-# 
-# # for() loop that calculates posterior distributions for overall C values 
-# for(i in 1:n.it) {
-#   C_Vals[i,"C_YOY_allCovs"] <- 1 - (YOY_BKT_nMix_v13_full$sims.list$s2.eps[i]/YOY_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_Adult_allCovs"] <- 1 - (Adult_BKT_nMix_v13_full$sims.list$s2.eps[i]/Adult_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_YOY_partialSummTemp"] <- 1 - (YOY_BKT_nMix_v13_partialSummTemp$sims.list$s2.eps[i]/YOY_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_Adult_partialSummTemp"] <- 1 - (Adult_BKT_nMix_v13_partialSummTemp$sims.list$s2.eps[i]/Adult_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_YOY_partialWintFlow"] <- 1 - (YOY_BKT_nMix_v13_partialWintFlow$sims.list$s2.eps[i]/YOY_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_Adult_partialWintFlow"] <- 1 - (Adult_BKT_nMix_v13_partialWintFlow$sims.list$s2.eps[i]/Adult_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_YOY_partialSprFlow"] <- 1 - (YOY_BKT_nMix_v13_partialSprFlow$sims.list$s2.eps[i]/YOY_BKT_nMix_v13_null$sims.list$s2.eps[i])
-#   C_Vals[i,"C_Adult_partialSprFlow"] <- 1 - (Adult_BKT_nMix_v13_partialSprFlow$sims.list$s2.eps[i]/Adult_BKT_nMix_v13_null$sims.list$s2.eps[i])
-# }
-# 
-# # C values for covariates for adults are all <0 b/c those covariates have nonsignificant effects on log density
-# # Visualize C values
-# C_Vals_Summary <- data.frame(C_Value = rep(c("All Covariates",
-#                                              "Mean 0.9Q Summer Air Temperature (Year t-1)",
-#                                              "Max 0.9Q Winter Flow (Year t)",
-#                                              "Max 0.9Q Spring Flow (Year t)"), 2),
-#                                  Age_Class = c(rep("YOY", 4), rep("Adult", 4)),
-#                                  Pstr_Mean = c(mean(C_Vals$C_YOY_allCovs),
-#                                                mean(C_Vals$C_YOY_partialSummTemp),
-#                                                mean(C_Vals$C_YOY_partialWintFlow),
-#                                                mean(C_Vals$C_YOY_partialSprFlow),
-#                                                mean(C_Vals$C_Adult_allCovs),
-#                                                mean(C_Vals$C_Adult_partialSummTemp),
-#                                                mean(C_Vals$C_Adult_partialWintFlow),
-#                                                mean(C_Vals$C_Adult_partialSprFlow)),
-#                                  Pstr_0.025_HDI = c(as.numeric(hdi(C_Vals$C_YOY_allCovs, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_YOY_partialSummTemp, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_YOY_partialWintFlow, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_YOY_partialSprFlow, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_allCovs, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_partialSummTemp, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_partialWintFlow, 0.95)[1]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_partialSprFlow, 0.95)[1])),
-#                                  Pstr_0.975_HDI = c(as.numeric(hdi(C_Vals$C_YOY_allCovs, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_YOY_partialSummTemp, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_YOY_partialWintFlow, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_YOY_partialSprFlow, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_allCovs, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_partialSummTemp, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_partialWintFlow, 0.95)[2]),
-#                                                     as.numeric(hdi(C_Vals$C_Adult_partialSprFlow, 0.95)[2])))
-# C_Vals_plot <- ggplot(data = C_Vals_Summary) +
-#   geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
-#   geom_linerange(aes(x = C_Value,
-#                      ymin = Pstr_0.025_HDI, #includes 95% highest density intervals
-#                      ymax = Pstr_0.975_HDI,
-#                      color = Age_Class),
-#                  position = position_dodge(.25),
-#                  size = 0.75) +
-#   geom_point(aes(x = C_Value,
-#                  y = Pstr_Mean,
-#                  color = Age_Class),
-#              position = position_dodge(.25)) +
-#   labs(title = "Covariate Effects on Synchrony in\n Log Density of BKT",
-#     x = element_blank(),
-#     y = "Posterior C Value",
-#     color = "Age Class") +
-#   scale_color_brewer(palette = "Dark2") +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 11)) +
-#   theme_classic()
 
-# # Save plot
-# ggsave("BKT_Nmix_C_Vals.jpg",
-#        plot = C_Vals_plot,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
 
 # Site-specific Cs
 # create an empty array to store the values
@@ -2574,3 +2438,5 @@ ggsave("BKT_Nmix_SourcePs.jpg",
        units = "mm",
        scale = 0.25,
        dpi = "retina")
+
+
