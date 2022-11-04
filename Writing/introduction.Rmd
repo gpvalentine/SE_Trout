@@ -3,32 +3,48 @@ title: ''
 output: pdf_document
 date: "`r Sys.Date()`"
 ---
+Commit: Update introduction 11.4.22
+- restructure introduction in terms of macrosystems ecology > synchrony > spatial heterogeneity in riverscapes > brook trout
+- slim down synchrony section
+- move climate refugia section to discussion  
 
 # Introduction
 
-* Humans have been fascinated by synchronous population dynamics for millennia. Both the Bible and Quran tell of plagues of locusts, while both Shakespear and Chaucer mentioned masts of acorns in their writings [@koenig2021].
-* One of the first modern ecologists to describe this pattern was Charles Elton, who described large-scale global fluctuations in mammal populations [@elton1925].
-* Tobler's First Law of Geography states that all things are related, but nearer things are more related than farther things [@tobler1970]. Many populations exhibit these characteristics, where correlated dynamics decay with distance.
-+ This is spatial synchrony, the autocorrelation of population dynamics across space.
-* Spatial synchrony has been documented in practically all major taxonomic groups, and is typically attributed to three causes [@koenig1999; @liebold2004]: 1) dispersal of individuals from populations at high density to those at low density [@ranta1995], 2) predators that switch between populations at high density [@ydenburg1987], and 3) the Moran effect, when environmental influences impose synchrony on populations [@moran1953].
+## Macrosystems ecology & cross-scale interactions
+* Many environmental processes and biological responses occur at macrosystem (i.e. regional , continental) scales. Likewise, ecological patterns cross scales from the macro to the local. Ecological research at macrosystem scales is relatively rare, but accelerating in recent years.
+
+## Spatial heterogeneity in stream systems
+* Stream systems offer a unique opportunity for the study of macrosystems ecology, multi-scale interactions, and spatial synchrony [@mccluney2014].
+  + Stream systems have an innate hierarchical structure that can range from the reach scale to the continental scale. They can include everything from complex headwater networks to large, simple, and linearized channels. Importantly, stream communities are often tied to the scale and structure of their networks, as summarized in the river continuum concept [@vannote1980].
+* Due to this complex spatial structure, stream systems also offer unique challenges.
+  + Because stream biota are largely restricted to dendritic networks, terrestrial assumptions of movement and distance do not apply.
+* While classical studies in stream ecology typically treat in longitudinally-distributed reaches, those small features of course connect to form paths, rivers, and watersheds. Ecological processes at small scales therefore combine to form cumulative and emergent processes at large scales. Macrosystems stream ecology is therefore a discipline with inhereent cross-scale interactions [@heffernan2014].
+
+## Synchrony
+* One biological response to cross-scale drivers is spatial synchrony, the autocorrelation of population dynamics across space.
 * Populations exhibiting spatial synchrony are at higher risk of global extinction compared to those not exhibiting spatial synchrony [@heino1997]. This is because demographic rescue is less likely among synchronous subpopulations when they are doing poorly.
-* Conversely, asynchrony in populations results in a reduced probability of extinction. Asynchronous populations may be more resilient in the face of climate change.  
-
-* Climate refugia are of growing importance in ecological studies. Climate refugia are typically identified by abiotic characteristics [@ashcroft2010]. In the context of fisheries and aquatics, these characteristics are typically cool and stable water temperatures and buffered flows [@cartwright2018; @isaak2015]. By measuring synchrony and asynchrony, we can identify locations and populations that are potentially resilient to environmental stressors. This allows us to identify refugia using empirical biotic evidence.  
-
+* Conversely, asynchrony in populations results in a reduced probability of extinction. Asynchronous populations may be more resilient in the face of climate change.
 * Synchrony contributes to metapopulation dynamics. It can be reasoned that a landscape of asynchronous populations, or at the least a “portfolio” of synchrony across the landscape, would lead to the most resilient metapopulations [@schindler2010].
-* The strength and scale of spatial synchrony have critical implications for species persistence. A deeper understanding of synchrony can help managers better conserve their target organisms. With estimates of the scale of spatial synchrony, managers can plan conservation measures at biologically relevant scales. With drivers of synchrony identified, managers can implement restoration measures to limit these drivers.  
+* The strength and scale of spatial synchrony have critical implications for species persistence. A deeper understanding of synchrony can help managers better conserve their target organisms. With estimates of the scale of spatial synchrony, managers can plan conservation measures at biologically relevant scales. With drivers of synchrony identified, managers can implement restoration measures to limit these drivers. 
 
+* ~~Humans have been fascinated by synchronous population dynamics for millennia. Both the Bible and Quran tell of plagues of locusts, while both Shakespear and Chaucer mentioned masts of acorns in their writings [@koenig2021].~~
+* ~~One of the first modern ecologists to describe this pattern was Charles Elton, who described large-scale global fluctuations in mammal populations [@elton1925].~~
+* ~~Tobler's First Law of Geography states that all things are related, but nearer things are more related than farther things [@tobler1970]. Many populations exhibit these characteristics, where correlated dynamics decay with distance.~~
+  + ~~This is spatial synchrony, the autocorrelation of population dynamics across space.~~
+* ~~Spatial synchrony has been documented in practically all major taxonomic groups, and is typically attributed to three causes [@koenig1999; @liebhold2004]: 1) dispersal of individuals from populations at high density to those at low density [@ranta1995], 2) predators that switch between populations at high density [@ydenberg1987], and 3) the Moran effect, when environmental influences impose synchrony on populations [@moran1953].~~
+
+## Brook Trout
 * Here, we explore spatial synchrony in Brook Trout (*Salvelinus fontinalis*), a threatened salmonid. Brook trout are a charismatic game species, the only salmonid native to the Eastern US, and the official fish of nine states.
 * They are culturally and economically important, particularly in their native range. Brook trout are one of the most popular freshwater sportfish in the US, and trout angling is second only to that of bass in the economic impact on the country [@sportfishing2021].
 * Native Brook Trout can be found distributed from the Appalachian Mountains in northern Georgia to the northeast of Quebec, Canada.
-* Because of their high environmental specificity, brook trout are a common aquatic indicator species. They are highly sensitive to water temperature, and cannot withstand prolonged temperatures above 22-24˚C [@eaton1995; @wehrly2007]. Young Brook Trout are also easily swept away by high flows during winter and spring months.
-* Due in part to this sensitivity, they have experienced tremendous declines, particularly in their southern native range [@hudy2008]. Estimates under future climate scenarios put habitat loss in this same area as high as 53% under 2.5˚C warming in the next century [@flebbe2006].
-* Theoretical and empirical evidence suggests that if spatial synchrony occurs in Brook Trout, it is likely due to the Moran Effect: Brook Trout are heavily influenced by environmental events occurring at large spatial scales, but due to the complex habitat and lack of strong predation in their mountainous habitat, not strongly influenced by dispersal or predation.  A small body of research hints that Brook Trout may be threatened by spatial synchrony
-+ In a 2016 study, @kann02016 found that seasonal air temperature and precipitation led to spatial synchrony in young-of-year (YOY) Brook Trout, but not in adults.
+* Because of their high environmental specificity, Brook Trout are a common aquatic indicator species. They are highly sensitive to water temperature, and cannot withstand prolonged temperatures above 22-24$^\circ$C [@eaton1995; @wehrly2007]. Young Brook Trout are also easily swept away by high flows during winter and spring months.
+* Due in part to this sensitivity, they have experienced tremendous declines, particularly in their southern native range [@hudy2008]. Estimates under future climate scenarios put habitat loss in this same area as high as 53% under 2.5$^\circ$C warming in the next century [@flebbe2006].
+* Theoretical and empirical evidence suggests that if spatial synchrony occurs in Brook Trout, it is likely due to the Moran Effect, where environmental influences impose synchrony on populations [@moran1953]. Brook Trout are heavily influenced by environmental events occurring at large spatial scales, but due to the complex habitat and lack of strong predation in their mountainous habitat, not strongly influenced by dispersal or predation.  A small body of research hints that Brook Trout may be threatened by spatial synchrony
++ In a 2016 study, @kanno2016 found that seasonal air temperature and precipitation led to spatial synchrony in young-of-year (YOY) Brook Trout, but not in adults.
 + Spatial synchrony has been described in other stream-dwelling salmonids such as Brown Trout (*Salmo trutta*) [@cattaneo2003; lobon-cervia2007a; @zorn2007]. This synchrony is usually driven by periods of high discharge in winter and spring. Synchrony due to dispersal or predators is not common in stream salmonids.
 + Despite these indications of synchrony in Brook Trout, no study has attempted a comprehensive analysis of spatial synchrony in this species.
 * There is an urgent need for measures that can conserve healthy populations of brook trout across their native range. A clear understanding of the role that spatial synchrony plays in both their dynamics and threatened status will be critical to effective management.
+
 * Here, we combine a spatial covariance approach with a population model to better understand the scales and drivers of spatial synchrony in southern Appalachian Brook Trout.
 * Our aims were threefold: 1) Approximate the scale at which spatial synchrony exists in southern Appalachian Brook Trout, 2) ascertain environmental factors that drive spatial synchrony in these populations, and 3) identify highly synchronous and asynchronous populations of conservation interest. Our study populations inhabit the Appalachian Mountains from Pennsylvania to Georgia. We evaluate spatial synchrony both across this region and within its northern and southern subregions.
 * Our analysis, based on thousands of individual observations from more than 100 sites, provides novel insight into the scales and drivers of spatial synchrony in Brook Trout in the Southeast US, as well as insight into the spatial distribution of both synchronous and asynchronous populations.
