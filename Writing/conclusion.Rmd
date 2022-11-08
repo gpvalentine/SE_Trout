@@ -5,4 +5,5 @@ output: pdf_document
 
 # Conclusion
 
-This is the conclusion section
+* Our approach also pioneers the use of biotic data (specifically time series data) to identify potential climate refugia. By identifying populations that are resilient to environmental stressors that otherwise cause declines, we can demonstrate refugia that “work”.
+* Asynchronous populations and the habitat surrounding them are important candidates for conservation measures including land conservation, harvest regulations, and genetic conservation.

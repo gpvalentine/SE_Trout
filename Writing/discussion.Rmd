@@ -5,4 +5,25 @@ output: pdf_document
 
 # Discussion
 
-This is the discussion section
+* Our investigation combines a spatial covariance approach with a population model to measure the spatial scale of correlation and parse apart the relative strengths of three drivers of spatial synchrony in southern Appalachian Brook Trout.
+
+## Spline Correlograms
+*	Our results support prior indications that YOY Brook Trout experience higher synchrony than adults [@kanno2016].
+* Correlation in log density of YOY and adult Brook Trout decayed with pairwise distance between sites, indicating that these populations are spatially autocorrelated.
+* It is often assumed that spatial synchrony can operate across a species’ range, however here we see that it operates at considerably smaller scales. Our observed scales of synchrony correlate more closely to the subregional scale.
+* When compared to truly synchronous processes such as regional weather, we see that spatial synchrony in Brook Trout is relatively low no matter the scale (Fig. x). This result indicates that Brook Trout populations may be relatively resilient to large-scale environmental threats.
+
+## Population Model
+* Abundance of YOY Brook Trout was negatively affected by summer temperatures, winter flows, and spring flows. Average summer high temperatures in the previous year had the strongest negative effect on YOY abundance, while maximum winter and spring flows had similarly small negative effects. Our results challenge those of @kanno2016, who found that winter flow had stronger negative effects on abundance than summer temperature.
+* Flows had the strongest synchronizing effects on YOY Brook Trout. Maximum winter flow had the largest contribution to synchrony of YOY, followed by maximum spring flow. Mean high summer temperature did not significantly contribute to synchrony of YOY. Since none of the three environmental covariates considered had significant effects on adult abundance, none contributed to adult synchrony.
+* Macrosystems research often reveals non-stationarity in covariate effects [@wiersma2022]. Our results are no different: we see that parameter estimates for environmental covariates differed in space, even changing signs depending on the subregion in question. This non-stationarity in space is evidence of cross scale interactions.
+
+## Ecological Interpretations
+* Asynchronous populations have important 
+* Climate refugia are of growing importance in ecological studies. Climate refugia are typically identified by abiotic characteristics [@ashcroft2010]. In the context of fisheries and aquatics, these characteristics are typically cool and stable water temperatures and buffered flows [@cartwright2018; @isaak2015]. By measuring synchrony and asynchrony, we can identify locations and populations that are potentially resilient to environmental stressors. This allows us to identify refugia using empirical biotic evidence. 
+ + A recently identified weakness with traditional approaches to identifying refugia is that verification of refugia is seldom carried out [@barrows2020]. Our approach allows for the process of identifying refugia to be integrated with the process of validating them with empirical data.
+
+## Limitations and Future Directions
+* We attempt to account for dispersal of individuals between sites by summarizing counts and densities at the stream segment level. We assume that dispersal happens within, but not between stream segments. While individual Brook Trout have been known to migrate long distances, evidence suggests that population-level movement rarely exceeds the stream reach scale (Hudy et al., 2010; Rodríguez, 2002). Future directions for this work would logically ensure spatial independence by sampling exclusively independent sites or by fitting a spatially explicit model.
+* *Using precipitation as a surrogate for flow in the future*
+
