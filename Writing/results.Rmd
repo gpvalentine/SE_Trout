@@ -1,9 +1,39 @@
 ---
 title: ''
-output: pdf_document
+output: bookdown::pdf_document2
 date: "`r Sys.Date()`"
 ---
 
 # Results
+## Spline Correlograms
 
-This is the results section
+
+## Population Model
+* Posterior predictive checks for mean and coefficient of variation of pass 1 YOY produced Bayesian p-values of __ and __, respectively. 
+* Capture probability by source varied from __ to __ for YOY Brook Trout and from __ to __ for adult Brook Trout (Fig. \@ref(fig:detect-probs)).
+
+```{r detect-probs, fig.cap = "Capture probability by data source"}
+Detect_probs.plot
+```
+
+### Covariate Effects on Abundance (Betas)
+* Covariate effects on Brook Trout abundance varied by subregion and age class (Fig. \@ref(fig:cov-effects)). 
+  + At the regional scale, all three environmental covariates had significant negative effects on log density of YOY, while they had nonsignificant effects on log density of adults. 
+  + Average 90th percentile summer temperature in year t-1 had the strongest negative effect on YOY abundance, followed by maximum 90th percentile winter flow and maximum 90th percentile spring flow. 
+  + Within the northern subregion, winter flow had the only significant effect on log density of YOY, and __. 
+  + Within the southern subregion, summer temperature affected log YOY density more negatively than winter flow and __.
+  
+```{r cov-effects, fig.cap = "Covariate effects on young-of-year Brook Trout log density."}
+cov_effects.plot
+```
+
+### Synchrony (ICCs)
+* A semivariogram of ICC values shows that the degree of synchrony is not related to stream distance between segments.
+* Segment-specific ICC values varied from __ to __ for YOY Brook Trout and from __ to __ for adult Brook Trout. There was considerable geographic heterogeneity (Fig.\@ref(fig:YOY-ICC-map)).
+* Northern Brook Trout populations were more synchronous than southern populations. Average ICC within the northern subregion was __ , while average ICC within the southern subregion was __.
+
+```{r YOY-ICC-map, fig.cap = "Capture probability by data source."}
+YOY_ICC_map.plot
+```
+
+### Covariate Effects on Synchrony (C-Values)

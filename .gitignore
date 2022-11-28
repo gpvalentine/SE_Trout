@@ -4,6 +4,7 @@
 .RData
 .Ruserdata
 
-# Ignore Data and Results folders
+# Ignore Data, Results, and JAGS_files folders
 Data
 Results
+Analysis/nMix_JAGS_files

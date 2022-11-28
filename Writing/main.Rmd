@@ -3,71 +3,71 @@ title: "Structure and scale of spatial synchrony in southeastern US Brook Trout 
 author: George Valentine
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
+  bookdown::pdf_document2:
+    toc: TRUE
     number_sections: TRUE
 geometry: "left = 2.5cm, right = 2cm, top = 2cm, bottom = 2cm"
 fontsize: 11pt
 header-includes:
-  - \usepackage{float}
   - \usepackage[left]{lineno}
   - \usepackage{sectsty}
-  - \usepackage{paralist}
   - \usepackage{setspace}\spacing{1.5}
-  - \usepackage{fancyhdr}
-  - \usepackage{lastpage}
-  - \usepackage{dcolumn}
+  - \usepackage{bm}
 linkcolor: blue
 bibliography: bibliography.bib
 csl: apa.csl
 keep_tex: true
+params:
+  run_name: ["v1.0"]
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F)
+
+# load required R packages
+library(here)         # For auro-locating files within the working directory
+library(bookdown)     # For numbering figures, tables, and equations
+library(stringr)      # For manipulating strings in figure captions
+library(ncf)          # For creating correlograms in missing data simulation (Appendix 1)
+library(cowplot)      # For creating gridded plots
+library(gridGraphics) # For including base R plots in gridded plots
+library(formatR)      # For displaying tidy code in output
+
+# Save the directory from which to pull results files
+run_dir <- here::here("results", params$run_name)
+
+# Load figures and tables to include
+load(file = file.path(run_dir, "plots.rdata"))
+load(file = file.path(run_dir, "tables.rdata"))
 ```
 
-\allsectionsfont{\centering}
-\subsectionfont{\raggedright}
-\subsubsectionfont{\raggedright}
-
-\pagenumbering{gobble}
-
 \newpage
 
-\pagenumbering{gobble}
-
-\begin{centering}
-
-{\bf Abstract}
-
-\end{centering}
-
-\spacing{1.5}
-
-(Insert abstract here.)
+```{r abstract, child = 'abstract.Rmd'}
+```
 
 \newpage
-
-\centering
-\raggedright
-\newpage
-\tableofcontents
-
-
-\newpage
+\pagenumbering{arabic}
 
 ```{r intro, child = 'introduction.Rmd'}
 ```
-\pagenumbering{arabic}
+
+\newpage
 
 ```{r methods, child = 'methods.Rmd'}
 ```
 
+\newpage
+
 ```{r results, child = 'results.Rmd'}
 ```
 
+\newpage
+
 ```{r discussion, child = 'discussion.Rmd'}
 ```
+
+\newpage
 
 ```{r conclusion, child = 'conclusion.Rmd'}
 ```

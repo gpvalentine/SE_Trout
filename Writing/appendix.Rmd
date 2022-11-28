@@ -1,8 +1,78 @@
 ---
 title: ''
-output: pdf_document
+output: bookdown::pdf_document2
 ---
 
 # Appendix
 
-This is the appendix
+\renewcommand{\thefigure}{A\arabic{figure}}
+\setcounter{figure}{0}
+
+## Simulation for Missing Data in Correlogram Analysis
+A simulation study was undertaken to evaluate the feasibility of interpreting correlograms creating using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly Brook Trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
+
+```{r Corrgram_MissingData_Sim, echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(1234)
+
+### Simulate 0 pct missingness data at 100 sites over 2 years
+x <- expand.grid(1:20, 1:5)[, 1]
+y <- expand.grid(1:20, 1:5)[, 2]
+Z <- cbind(rmvn.spa(x=x, y=y, p=2, method="gaus"), # true range (p) is 2 under Gaussian covariance function
+  rmvn.spa(x=x, y=y, p=2, method="gaus"))
+# Fit correlogram
+fit0 <- Sncf(x=x, y=y, z=Z, resamp=1E3, quiet = T)
+plot0 <- ~plot(fit0)
+m0.summary <- summary(fit0)
+
+### 25 pct missingness
+Z.m25 <- Z
+Z.m25[sample(length(x), 0.25*length(x))] <- NA
+for (i in 1:nrow(Z)) {
+  idx.tmp <- which(is.na(Z.m25[i, ]))
+  if (length(idx.tmp>0)) {
+    Z.m25[i, idx.tmp] <- mean(Z.m25[i, ], na.rm=TRUE)
+  }
+}
+# Fit correlogram
+fit25 <- Sncf(x=x, y=y, z=Z.m25, resamp=1E3, quiet = T)
+plot25 <- ~plot(fit25)
+m25.summary <- summary(fit25)
+
+### 50 pct missingness
+Z.m50 <- Z
+Z.m50[sample(length(x), 0.50*length(x))] <- NA
+for (i in 1:nrow(Z)) {
+  idx.tmp <- which(is.na(Z.m50[i, ]))
+  if (length(idx.tmp>0)) {
+    Z.m50[i, idx.tmp] <- mean(Z.m50[i, ], na.rm=TRUE)
+  }
+}
+# Fit correlogram
+fit50 <- Sncf(x=x, y=y, z=Z.m50, resamp=1E3, quiet = T)
+plot50 <- ~plot(fit50)
+m50.summary <- summary(fit50)
+
+### 75 pct missingness
+Z.m75 <- Z
+Z.m75[sample(length(x), 0.75*length(x))] <- NA
+for (i in 1:nrow(Z)) {
+  idx.tmp <- which(is.na(Z.m75[i, ]))
+  if (length(idx.tmp>0)) {
+    Z.m75[i, idx.tmp] <- mean(Z.m75[i, ], na.rm=TRUE)
+  }
+}
+# Fit correlogram
+fit75 <- Sncf(x=x, y=y, z=Z.m75, resamp=1E3, quiet = T)
+plot75 <- ~plot(fit75)
+m75.summary <- summary(fit75)
+
+## Make a compound plot
+SimStudy_compound_plot <- plot_grid(plot0, plot25, plot50, plot75,
+                          labels = c("a", "b", "c", "d"))
+```
+
+```{r sim-study-plot, fig.cap="Spline correlogram of a datasets with a) 0%, b) 25%, c) 50%, and d) 75% missingness over 2 years at 100 sites. Grey shading represents 95% confidence interval. Grey line represents mean correlation.", fig.width=8, fig.height=8}
+SimStudy_compound_plot
+```
+
+Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 47% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.

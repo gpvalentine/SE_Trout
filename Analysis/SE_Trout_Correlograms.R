@@ -16,7 +16,6 @@ library(reshape2)   # For reshaping the data into long format
 library(ncf)        # For synchrony analysis
 library(grid)       # for labeling the gridded plot
 library(gridExtra)  # for creating a labeled, gridded plot
-library(cowplot)    # For creating gridded plots
 library(FSA)        # For making depletion estimates
 library(knitr)      # For making tidy tables
 
@@ -51,8 +50,18 @@ BKT_Sample_Temporal_Coverage <- SE_Ind_Final %>%
 
 # get a list of just sites south of the north border of PA
 south_sites <- SE_Site_Final %>% 
-  filter(Lat <= 43) %>% 
+  filter(Lat <= 39.716667) %>%  # filter for just sites south of the Mason-Dixon Line
   select(SiteID)
+
+# Some sites don't have any BKT. Make a dataframe of just the sites that have >10% BKT. This is Matt Kulp's suggestion rather than using sites with just any BKT
+BKT_Sites <- SE_Ind_Final %>% 
+  group_by(SiteID,
+           SPP) %>% 
+  dplyr::summarise(count = n()) %>% 
+  ungroup(SPP) %>% 
+  mutate(pct_BKT = prop.table(count) * 100) %>% 
+  filter(SPP == "BKT",
+         pct_BKT >= 10)
 
 # sum BKT abundance at each sample and pass and filter to just multipass data
 # multipass data are necessary for predicting abundance
@@ -60,6 +69,7 @@ south_sites <- SE_Site_Final %>%
 BKT_sample_sums <- SE_Ind_Final %>% 
   filter(SPP == "BKT",
          SiteID %in% south_sites$SiteID,
+         SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
          year(Date) %in% c(1995:2015)) %>% # Filter to time frame of interest
   group_by(SampleID,
            PassNo) %>% 
@@ -135,16 +145,17 @@ BKT_COMID_Sites_Map
 #        )
 
 # calculate the average density of fish/year at each site
-BKT_COMID_Dens_wide$mean_fish <- (rowSums(BKT_COMID_Dens_wide[,4:ncol(BKT_COMID_Dens_wide)], na.rm = T)/apply(!is.na(BKT_COMID_Dens_wide[,4:ncol(BKT_COMID_Dens_wide)]), MARGIN = 1, sum))
+BKT_COMID_Dens_wide$mean_density <- (rowSums(BKT_COMID_Dens_wide[,4:ncol(BKT_COMID_Dens_wide)], na.rm = T)/apply(!is.na(BKT_COMID_Dens_wide[,4:ncol(BKT_COMID_Dens_wide)]), MARGIN = 1, sum))
 
 # then replace the NAs with the average density of fish per year at that COMID
 for (i in 1:nrow(BKT_COMID_Dens_wide)) {
-  BKT_COMID_Dens_wide[i,4:ncol(BKT_COMID_Dens_wide)][is.na(BKT_COMID_Dens_wide[i,4:ncol(BKT_COMID_Dens_wide)])] <- BKT_COMID_Dens_wide[i, "mean_fish"]
+  BKT_COMID_Dens_wide[i,4:ncol(BKT_COMID_Dens_wide)][is.na(BKT_COMID_Dens_wide[i,4:ncol(BKT_COMID_Dens_wide)])] <- BKT_COMID_Dens_wide[i, "mean_density"]
   print(i)
 }
 
 # remove the column where we stored mean density
-BKT_COMID_Dens_wide <- BKT_COMID_Dens_wide[,1:ncol(BKT_COMID_Dens_wide)]
+BKT_COMID_Dens_wide <- BKT_COMID_Dens_wide %>% 
+  select(-mean_density)
 
 # Now make a new dataframe with log density
 # calculating synchrony based on log density helps remove the undue influence of outliers
@@ -152,26 +163,26 @@ BKT_COMID_logDens_wide <- BKT_COMID_Dens_wide
 BKT_COMID_logDens_wide[,4:ncol(BKT_COMID_logDens_wide)] <- log(BKT_COMID_logDens_wide[,4:ncol(BKT_COMID_logDens_wide)])
 
 # Now, calculate spatial synchrony in the time series using the Sncf() function
-BKT.COMID.logDens.corr <- Sncf(x=BKT_COMID_logDens_wide$Long,
+BKT_COMID_logDens.corr <- Sncf(x=BKT_COMID_logDens_wide$Long,
                                y=BKT_COMID_logDens_wide$Lat,
                                z=BKT_COMID_logDens_wide[,4:ncol(BKT_COMID_logDens_wide)],
                                resamp = 1000, 
                                latlon = T,
                                xmax = ((2/3)*max(na.omit(gcdist(BKT_COMID_logDens_wide$Long, BKT_COMID_logDens_wide$Lat)))))
 
-plot(BKT.COMID.logDens.corr)
-summary(BKT.COMID.logDens.corr)
+plot(BKT_COMID_logDens.corr)
+summary(BKT_COMID_logDens.corr)
 
 # Plot using ggplot for export
 # create a dataframe of the predicted values
-BKT.COMID.logDens.corr.pred.df <- data.frame(x = matrix(unlist(BKT.COMID.logDens.corr$real$predicted$x)),
-                                             y = matrix(unlist(BKT.COMID.logDens.corr$real$predicted$y)))
+BKT.COMID.logDens.corr.pred.df <- data.frame(x = matrix(unlist(BKT_COMID_logDens.corr$real$predicted$x)),
+                                             y = matrix(unlist(BKT_COMID_logDens.corr$real$predicted$y)))
 
 # ...and a dataframe of the y values for the bootstrap prediction
-BKT.COMID.logDens.corr.bootValues.df <- as.data.frame(t(BKT.COMID.logDens.corr$boot$boot.summary$predicted$y))
+BKT.COMID.logDens.corr.bootValues.df <- as.data.frame(t(BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))
 
 # merge x and y values (min and max) for the bootstrap confidence intervals into a dataframe
-BKT.COMID.logDens.corr.boot.df <- data.frame(x = matrix(unlist(BKT.COMID.logDens.corr$boot$boot.summary$predicted$x)),
+BKT.COMID.logDens.corr.boot.df <- data.frame(x = matrix(unlist(BKT_COMID_logDens.corr$boot$boot.summary$predicted$x)),
                                              ymin = BKT.COMID.logDens.corr.bootValues.df$`0.025`,
                                              ymax = BKT.COMID.logDens.corr.bootValues.df$`0.975`)
 
@@ -204,7 +215,7 @@ BKT_COMID_logDens_wide_N <- BKT_COMID_logDens_wide %>%
 
 BKT_COMID_logDens.corr_N <- Sncf(x=BKT_COMID_logDens_wide_N$Long,
                                      y=BKT_COMID_logDens_wide_N$Lat,
-                                     z=BKT_COMID_logDens_wide_N[,4:35],
+                                     z=BKT_COMID_logDens_wide_N[,4:ncol(BKT_COMID_logDens_wide_N)],
                                      resamp = 1000, 
                                      latlon = T,
                                      xmax = ((2/3)*max(na.omit(gcdist(BKT_COMID_logDens_wide_N$Long, BKT_COMID_logDens_wide_N$Lat)))))
@@ -218,7 +229,7 @@ BKT_COMID_logDens_wide_S <- BKT_COMID_logDens_wide %>%
 
 BKT_COMID_logDens.corr_S <- Sncf(x=BKT_COMID_logDens_wide_S$Long,
                                      y=BKT_COMID_logDens_wide_S$Lat,
-                                     z=BKT_COMID_logDens_wide_S[,4:35],
+                                     z=BKT_COMID_logDens_wide_S[,4:ncol(BKT_COMID_logDens_wide_S)],
                                      resamp = 1000, 
                                      latlon = T,
                                      xmax = ((2/3)*max(na.omit(gcdist(BKT_COMID_logDens_wide_S$Long, BKT_COMID_logDens_wide_S$Lat)))))
@@ -236,7 +247,7 @@ YOY_BKT_sample_sums <- SE_Ind_Final %>%
   filter(SPP == "BKT",
          SiteID %in% south_sites$SiteID,
          TL_mm <= 90, # filter here for YOY
-         year(Date) %in% c(1980:2015)) %>% # Filter to time frame of interest
+         year(Date) %in% c(1995:2015)) %>% # Filter to time frame of interest
   group_by(SampleID,
            PassNo) %>% 
   summarise(SiteID = first(SiteID),
@@ -280,10 +291,13 @@ YOY_BKT_COMID_Dens_wide <- dcast(data = YOY_BKT_COMID_Dens,
 
 # Make a new column with a count of the number of years of nonzero data, and filter out sites that have fewer than five years' of data during this time period
 YOY_BKT_COMID_Dens_wide <- YOY_BKT_COMID_Dens_wide %>%  
-  mutate(nYears_data = rowSums(.[,4:35] != 0, na.rm = T)) %>% 
+  mutate(nYears_data = rowSums(.[,4:ncol(.)] != 0, na.rm = T)) %>% 
   filter(nYears_data >= 5,
          !is.na(COMID)) %>% 
   dplyr::select(-nYears_data) # remove the column because we don't need it anymore
+
+# what percentage of observations are missing data?
+mean(is.na(YOY_BKT_COMID_Dens_wide[,4:ncol(YOY_BKT_COMID_Dens_wide)]))
 
 # make a quick map to visualize what sites we will be using
 ggplot() +
@@ -296,43 +310,44 @@ ggplot() +
             ylim = c(34.5,45))
 
 # calculate the average density of YOY fish/year at each site
-YOY_BKT_COMID_Dens_wide$mean_fish <- (rowSums(YOY_BKT_COMID_Dens_wide[,4:35], na.rm = T)/apply(!is.na(YOY_BKT_COMID_Dens_wide[,4:35]), MARGIN = 1, sum))
+YOY_BKT_COMID_Dens_wide$mean_density <- (rowSums(YOY_BKT_COMID_Dens_wide[,4:ncol(YOY_BKT_COMID_Dens_wide)], na.rm = T)/apply(!is.na(YOY_BKT_COMID_Dens_wide[,4:ncol(YOY_BKT_COMID_Dens_wide)]), MARGIN = 1, sum))
 
 # then replace the NAs with the average density of YOY fish per year at that COMID
 for (i in 1:nrow(YOY_BKT_COMID_Dens_wide)) {
-  YOY_BKT_COMID_Dens_wide[i,4:35][is.na(YOY_BKT_COMID_Dens_wide[i,4:35])] <- YOY_BKT_COMID_Dens_wide[i, "mean_fish"]
+  YOY_BKT_COMID_Dens_wide[i,4:ncol(YOY_BKT_COMID_Dens_wide)][is.na(YOY_BKT_COMID_Dens_wide[i,4:ncol(YOY_BKT_COMID_Dens_wide)])] <- YOY_BKT_COMID_Dens_wide[i, "mean_density"]
   print(i)
 }
 
 # remove the column where we stored mean density
-YOY_BKT_COMID_Dens_wide <- YOY_BKT_COMID_Dens_wide[,1:35]
+YOY_BKT_COMID_Dens_wide <- YOY_BKT_COMID_Dens_wide %>% 
+  select(-mean_density)
 
 # Now make a new dataframe with log density
 # calculating synchrony based on log YOY density helps remove the undue influence of outliers
 YOY_BKT_COMID_logDens_wide <- YOY_BKT_COMID_Dens_wide
-YOY_BKT_COMID_logDens_wide[,4:35] <- log(YOY_BKT_COMID_logDens_wide[,4:35])
+YOY_BKT_COMID_logDens_wide[,4:ncol(YOY_BKT_COMID_logDens_wide)] <- log(YOY_BKT_COMID_logDens_wide[,4:ncol(YOY_BKT_COMID_logDens_wide)])
 
 # Now, calculate spatial synchrony in the time series using the Sncf() function
-YOY_BKT.COMID.logDens.corr <- Sncf(x=YOY_BKT_COMID_logDens_wide$Long,
+YOY_BKT_COMID_logDens.corr <- Sncf(x=YOY_BKT_COMID_logDens_wide$Long,
                                    y=YOY_BKT_COMID_logDens_wide$Lat,
-                                   z=YOY_BKT_COMID_logDens_wide[,4:35],
+                                   z=YOY_BKT_COMID_logDens_wide[,4:ncol(YOY_BKT_COMID_logDens_wide)],
                                    resamp = 1000, 
                                    latlon = T,
                                    xmax = ((2/3)*max(na.omit(gcdist(YOY_BKT_COMID_logDens_wide$Long, YOY_BKT_COMID_logDens_wide$Lat)))))
 
-plot(YOY_BKT.COMID.logDens.corr)
-summary(YOY_BKT.COMID.logDens.corr)
+plot(YOY_BKT_COMID_logDens.corr)
+summary(YOY_BKT_COMID_logDens.corr)
 
 # Plot using ggplot for export
 # create a dataframe of the predicted values
-YOY_BKT.COMID.logDens.corr.pred.df <- data.frame(x = matrix(unlist(YOY_BKT.COMID.logDens.corr$real$predicted$x)),
-                                                 y = matrix(unlist(YOY_BKT.COMID.logDens.corr$real$predicted$y)))
+YOY_BKT.COMID.logDens.corr.pred.df <- data.frame(x = matrix(unlist(YOY_BKT_COMID_logDens.corr$real$predicted$x)),
+                                                 y = matrix(unlist(YOY_BKT_COMID_logDens.corr$real$predicted$y)))
 
 # ...and a dataframe of the y values for the bootstrap prediction
-YOY_BKT.COMID.logDens.corr.bootValues.df <- as.data.frame(t(YOY_BKT.COMID.logDens.corr$boot$boot.summary$predicted$y))
+YOY_BKT.COMID.logDens.corr.bootValues.df <- as.data.frame(t(YOY_BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))
 
 # merge x and y values (min and max) for the bootstrap confidence intervals into a dataframe
-YOY_BKT.COMID.logDens.corr.boot.df <- data.frame(x = matrix(unlist(YOY_BKT.COMID.logDens.corr$boot$boot.summary$predicted$x)),
+YOY_BKT.COMID.logDens.corr.boot.df <- data.frame(x = matrix(unlist(YOY_BKT_COMID_logDens.corr$boot$boot.summary$predicted$x)),
                                                  ymin = YOY_BKT.COMID.logDens.corr.bootValues.df$`0.025`,
                                                  ymax = YOY_BKT.COMID.logDens.corr.bootValues.df$`0.975`)
 
@@ -364,29 +379,29 @@ YOY_BKT.COMID.logDens.synch.plot
 YOY_BKT_COMID_logDens_wide_N <- YOY_BKT_COMID_logDens_wide %>% 
   filter(Lat > 37.13)
 
-YOY_BKT.COMID.logDens.corr_N <- Sncf(x=YOY_BKT_COMID_logDens_wide_N$Long,
+YOY_BKT_COMID_logDens.corr_N <- Sncf(x=YOY_BKT_COMID_logDens_wide_N$Long,
                                    y=YOY_BKT_COMID_logDens_wide_N$Lat,
-                                   z=YOY_BKT_COMID_logDens_wide_N[,4:35],
+                                   z=YOY_BKT_COMID_logDens_wide_N[,4:ncol(YOY_BKT_COMID_logDens_wide_N)],
                                    resamp = 1000, 
                                    latlon = T,
                                    xmax = ((2/3)*max(na.omit(gcdist(YOY_BKT_COMID_logDens_wide_N$Long, YOY_BKT_COMID_logDens_wide_N$Lat)))))
 
-plot(YOY_BKT.COMID.logDens.corr_N)
-summary(YOY_BKT.COMID.logDens.corr_N)
+plot(YOY_BKT_COMID_logDens.corr_N)
+summary(YOY_BKT_COMID_logDens.corr_N)
 
 ## South
 YOY_BKT_COMID_logDens_wide_S <- YOY_BKT_COMID_logDens_wide %>% 
-  filter(Lat >= 37.13)
+  filter(Lat <= 37.13)
 
-YOY_BKT.COMID.logDens.corr_S <- Sncf(x=YOY_BKT_COMID_logDens_wide_S$Long,
+YOY_BKT_COMID_logDens.corr_S <- Sncf(x=YOY_BKT_COMID_logDens_wide_S$Long,
                                      y=YOY_BKT_COMID_logDens_wide_S$Lat,
-                                     z=YOY_BKT_COMID_logDens_wide_S[,4:35],
+                                     z=YOY_BKT_COMID_logDens_wide_S[,4:ncol(YOY_BKT_COMID_logDens_wide_S)],
                                      resamp = 1000, 
                                      latlon = T,
                                      xmax = ((2/3)*max(na.omit(gcdist(YOY_BKT_COMID_logDens_wide_S$Long, YOY_BKT_COMID_logDens_wide_S$Lat)))))
 
-plot(YOY_BKT.COMID.logDens.corr_S)
-summary(YOY_BKT.COMID.logDens.corr_S)
+plot(YOY_BKT_COMID_logDens.corr_S)
+summary(YOY_BKT_COMID_logDens.corr_S)
 
 ######
 # SPATIAL SYNCHRONY OF LOG PREDICTED ADULT BKT DENSITY BY NHDPlus v2.1 COMID
@@ -441,10 +456,13 @@ Adult_BKT_COMID_Dens_wide <- dcast(data = Adult_BKT_COMID_Dens,
 
 # Make a new column with a count of the number of years of nonzero data, and filter out sites that have fewer than five years' of data during this time period
 Adult_BKT_COMID_Dens_wide <- Adult_BKT_COMID_Dens_wide %>%  
-  mutate(nYears_data = rowSums(.[,4:35] != 0, na.rm = T)) %>% 
+  mutate(nYears_data = rowSums(.[,4:ncol(.)] != 0, na.rm = T)) %>% 
   filter(nYears_data >= 5,
          !is.na(COMID)) %>% 
   dplyr::select(-nYears_data) # remove the column because we don't need it anymore
+
+# what percentage of observations are missing data?
+mean(is.na(Adult_BKT_COMID_Dens_wide[,4:ncol(Adult_BKT_COMID_Dens_wide)]))
 
 # make a quick map to visualize what sites we will be using
 ggplot() +
@@ -457,44 +475,45 @@ ggplot() +
             ylim = c(34.5,45))
 
 # calculate the average density of Adult fish/year at each site
-Adult_BKT_COMID_Dens_wide$mean_fish <- (rowSums(Adult_BKT_COMID_Dens_wide[,4:35], na.rm = T)/apply(!is.na(Adult_BKT_COMID_Dens_wide[,4:35]), MARGIN = 1, sum))
+Adult_BKT_COMID_Dens_wide$mean_density <- (rowSums(Adult_BKT_COMID_Dens_wide[,4:ncol(Adult_BKT_COMID_Dens_wide)], na.rm = T)/apply(!is.na(Adult_BKT_COMID_Dens_wide[,4:ncol(Adult_BKT_COMID_Dens_wide)]), MARGIN = 1, sum))
 
 # then replace the NAs with the average density of adult fish per year at that COMID
 for (i in 1:nrow(Adult_BKT_COMID_Dens_wide)) {
-  Adult_BKT_COMID_Dens_wide[i,4:35][is.na(Adult_BKT_COMID_Dens_wide[i,4:35])] <- Adult_BKT_COMID_Dens_wide[i, "mean_fish"]
+  Adult_BKT_COMID_Dens_wide[i,4:ncol(Adult_BKT_COMID_Dens_wide)][is.na(Adult_BKT_COMID_Dens_wide[i,4:ncol(Adult_BKT_COMID_Dens_wide)])] <- Adult_BKT_COMID_Dens_wide[i, "mean_density"]
   print(i)
 }
 
 # remove the column where we stored mean density
-Adult_BKT_COMID_Dens_wide <- Adult_BKT_COMID_Dens_wide[,1:22]
+Adult_BKT_COMID_Dens_wide <- Adult_BKT_COMID_Dens_wide %>% 
+  select(-mean_density)
 
 # Now make a new dataframe with log density
 # calculating synchrony based on log adult density helps remove the undue influence of outliers
 Adult_BKT_COMID_logDens_wide <- Adult_BKT_COMID_Dens_wide
-Adult_BKT_COMID_logDens_wide[,4:35] <- log(Adult_BKT_COMID_logDens_wide[,4:35])
+Adult_BKT_COMID_logDens_wide[,4:ncol(Adult_BKT_COMID_logDens_wide)] <- log(Adult_BKT_COMID_logDens_wide[,4:ncol(Adult_BKT_COMID_logDens_wide)])
 
 # Now, calculate spatial synchrony in the time series using the Sncf() function
-Adult_BKT.COMID.logDens.corr <- Sncf(x=Adult_BKT_COMID_logDens_wide$Long,
+Adult_BKT_COMID_logDens.corr <- Sncf(x=Adult_BKT_COMID_logDens_wide$Long,
                                      y=Adult_BKT_COMID_logDens_wide$Lat,
-                                     z=Adult_BKT_COMID_logDens_wide[,4:35],
+                                     z=Adult_BKT_COMID_logDens_wide[,4:ncol(Adult_BKT_COMID_logDens_wide)],
                                      resamp = 1000, 
                                      latlon = T,
                                      xmax = ((2/3)*max(na.omit(gcdist(Adult_BKT_COMID_logDens_wide$Long, Adult_BKT_COMID_logDens_wide$Lat)))))
 
-plot(Adult_BKT.COMID.logDens.corr)
-summary(Adult_BKT.COMID.logDens.corr)
+plot(Adult_BKT_COMID_logDens.corr)
+summary(Adult_BKT_COMID_logDens.corr)
 
 
 # Plot using ggplot for export
 # create a dataframe of the predicted values
-Adult_BKT.COMID.logDens.corr.pred.df <- data.frame(x = matrix(unlist(Adult_BKT.COMID.logDens.corr$real$predicted$x)),
-                                                   y = matrix(unlist(Adult_BKT.COMID.logDens.corr$real$predicted$y)))
+Adult_BKT.COMID.logDens.corr.pred.df <- data.frame(x = matrix(unlist(Adult_BKT_COMID_logDens.corr$real$predicted$x)),
+                                                   y = matrix(unlist(Adult_BKT_COMID_logDens.corr$real$predicted$y)))
 
 # ...and a dataframe of the y values for the bootstrap prediction
-Adult_BKT.COMID.logDens.corr.bootValues.df <- as.data.frame(t(Adult_BKT.COMID.logDens.corr$boot$boot.summary$predicted$y))
+Adult_BKT.COMID.logDens.corr.bootValues.df <- as.data.frame(t(Adult_BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))
 
 # merge x and y values (min and max) for the bootstrap confidence intervals into a dataframe
-Adult_BKT.COMID.logDens.corr.boot.df <- data.frame(x = matrix(unlist(Adult_BKT.COMID.logDens.corr$boot$boot.summary$predicted$x)),
+Adult_BKT.COMID.logDens.corr.boot.df <- data.frame(x = matrix(unlist(Adult_BKT_COMID_logDens.corr$boot$boot.summary$predicted$x)),
                                                    ymin = Adult_BKT.COMID.logDens.corr.bootValues.df$`0.025`,
                                                    ymax = Adult_BKT.COMID.logDens.corr.bootValues.df$`0.975`)
 
@@ -518,53 +537,173 @@ Adult_BKT.COMID.logDens.synch.plot <- ggplot() +
 
 Adult_BKT.COMID.logDens.synch.plot
 
+# Does synchrony differ between the north and south regions of the SE US?
+# Define these regions: we draw the line at Radford, VA in the New River Valley. Per the suggestion of Jake Rash
+
+## Adult
+## North
+Adult_BKT_COMID_logDens_wide_N <- Adult_BKT_COMID_logDens_wide %>% 
+  filter(Lat > 37.13)
+
+Adult_BKT_COMID_logDens.corr_N <- Sncf(x=Adult_BKT_COMID_logDens_wide_N$Long,
+                                     y=Adult_BKT_COMID_logDens_wide_N$Lat,
+                                     z=Adult_BKT_COMID_logDens_wide_N[,4:ncol(Adult_BKT_COMID_logDens_wide_N)],
+                                     resamp = 1000, 
+                                     latlon = T,
+                                     xmax = ((2/3)*max(na.omit(gcdist(Adult_BKT_COMID_logDens_wide_N$Long, Adult_BKT_COMID_logDens_wide_N$Lat)))))
+
+plot(Adult_BKT_COMID_logDens.corr_N)
+summary(Adult_BKT_COMID_logDens.corr_N)
+
+## South
+Adult_BKT_COMID_logDens_wide_S <- Adult_BKT_COMID_logDens_wide %>% 
+  filter(Lat <= 37.13)
+
+Adult_BKT_COMID_logDens.corr_S <- Sncf(x=Adult_BKT_COMID_logDens_wide_S$Long,
+                                     y=Adult_BKT_COMID_logDens_wide_S$Lat,
+                                     z=Adult_BKT_COMID_logDens_wide_S[,4:ncol(Adult_BKT_COMID_logDens_wide_S)],
+                                     resamp = 1000, 
+                                     latlon = T,
+                                     xmax = ((2/3)*max(na.omit(gcdist(Adult_BKT_COMID_logDens_wide_S$Long, Adult_BKT_COMID_logDens_wide_S$Lat)))))
+
+plot(Adult_BKT_COMID_logDens.corr_S)
+summary(Adult_BKT_COMID_logDens.corr_S)
+
 #######################
 ## Now combine all density plots into one figure
-# create a gridded plot with the desired subplots
-plot <- plot_grid(YOY_BKT.COMID.logDens.synch.plot, Adult_BKT.COMID.logDens.synch.plot, BKT.COMID.logDens.synch.plot, 
-                  nrow = 3)
+compound_density_corrgram.data <- data.frame(AgeClass = c(rep("All", 900),
+                                                              rep("YOY", 900),
+                                                              rep("Adult", 900)),
+                                             Subregion = rep(c(rep("All", 300),
+                                                                   rep("North", 300),
+                                                                   rep("South", 300)), 3),
+                                             x = rbind(
+                                               # All BKT, all subregions
+                                               matrix(unlist(BKT_COMID_logDens.corr$real$predicted$x)),
+                                               # All BKT, northern subregion
+                                               matrix(unlist(BKT_COMID_logDens.corr_N$real$predicted$x)),
+                                               # All BKT, southern subregion
+                                               matrix(unlist(BKT_COMID_logDens.corr_S$real$predicted$x)),
+                                               # YOY BKT, all subregions
+                                               matrix(unlist(YOY_BKT_COMID_logDens.corr$real$predicted$x)),
+                                               # YOY BKT, northern subregion
+                                               matrix(unlist(YOY_BKT_COMID_logDens.corr_N$real$predicted$x)),
+                                               # YOY BKT, southern subregion
+                                               matrix(unlist(YOY_BKT_COMID_logDens.corr_S$real$predicted$x)),
+                                               # Adult BKT, all subregions
+                                               matrix(unlist(Adult_BKT_COMID_logDens.corr$real$predicted$x)),
+                                               # Adult BKT, northern subregion
+                                               matrix(unlist(Adult_BKT_COMID_logDens.corr_N$real$predicted$x)),
+                                               # Adult BKT, southern subregion
+                                               matrix(unlist(Adult_BKT_COMID_logDens.corr_S$real$predicted$x))),
+                                             y = rbind(
+                                               # All BKT, all subregions
+                                               matrix(unlist(BKT_COMID_logDens.corr$real$predicted$y)),
+                                               # All BKT, northern subregion
+                                               matrix(unlist(BKT_COMID_logDens.corr_N$real$predicted$y)),
+                                               # All BKT, southern subregion
+                                               matrix(unlist(BKT_COMID_logDens.corr_S$real$predicted$y)),
+                                               # YOY BKT, all subregions
+                                               matrix(unlist(YOY_BKT_COMID_logDens.corr$real$predicted$y)),
+                                               # YOY BKT, northern subregion
+                                               matrix(unlist(YOY_BKT_COMID_logDens.corr_N$real$predicted$y)),
+                                               # YOY BKT, southern subregion
+                                               matrix(unlist(YOY_BKT_COMID_logDens.corr_S$real$predicted$y)),
+                                               # Adult BKT, all subregions
+                                               matrix(unlist(Adult_BKT_COMID_logDens.corr$real$predicted$y)),
+                                               # Adult BKT, northern subregion
+                                               matrix(unlist(Adult_BKT_COMID_logDens.corr_N$real$predicted$y)),
+                                               # Adult BKT, southern subregion
+                                               matrix(unlist(Adult_BKT_COMID_logDens.corr_S$real$predicted$y))),
+                                             ymin = c(
+                                               # All BKT, all subregions
+                                               as.data.frame(t(BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))[,2],
+                                               # All BKT, northern subregion
+                                               as.data.frame(t(BKT_COMID_logDens.corr_N$boot$boot.summary$predicted$y))[,2],
+                                               # All BKT, southern subregion
+                                               as.data.frame(t(BKT_COMID_logDens.corr_S$boot$boot.summary$predicted$y))[,2],
+                                               # YOY BKT, all subregions
+                                               as.data.frame(t(YOY_BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))[,2],
+                                               # YOY BKT, northern subregion
+                                               as.data.frame(t(YOY_BKT_COMID_logDens.corr_N$boot$boot.summary$predicted$y))[,2],
+                                               # YOY BKT, southern subregion
+                                               as.data.frame(t(YOY_BKT_COMID_logDens.corr_S$boot$boot.summary$predicted$y))[,2],
+                                               # Adult BKT, all subregions
+                                               as.data.frame(t(Adult_BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))[,2],
+                                               # Adult BKT, northern subregion
+                                               as.data.frame(t(Adult_BKT_COMID_logDens.corr_N$boot$boot.summary$predicted$y))[,2],
+                                               # Adult BKT, southern subregion
+                                               as.data.frame(t(Adult_BKT_COMID_logDens.corr_S$boot$boot.summary$predicted$y))[,2]),
+                                             ymax = c(
+                                               # All BKT, all subregions
+                                               as.data.frame(t(BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))[,10],
+                                               # All BKT, northern subregion
+                                               as.data.frame(t(BKT_COMID_logDens.corr_N$boot$boot.summary$predicted$y))[,10],
+                                               # All BKT, southern subregion
+                                               as.data.frame(t(BKT_COMID_logDens.corr_S$boot$boot.summary$predicted$y))[,10],
+                                               # YOY BKT, all subregions
+                                               as.data.frame(t(YOY_BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))[,10],
+                                               # YOY BKT, northern subregion
+                                               as.data.frame(t(YOY_BKT_COMID_logDens.corr_N$boot$boot.summary$predicted$y))[,10],
+                                               # YOY BKT, southern subregion
+                                               as.data.frame(t(YOY_BKT_COMID_logDens.corr_S$boot$boot.summary$predicted$y))[,10],
+                                               # Adult BKT, all subregions
+                                               as.data.frame(t(Adult_BKT_COMID_logDens.corr$boot$boot.summary$predicted$y))[,10],
+                                               # Adult BKT, northern subregion
+                                               as.data.frame(t(Adult_BKT_COMID_logDens.corr_N$boot$boot.summary$predicted$y))[,10],
+                                               # Adult BKT, southern subregion
+                                               as.data.frame(t(Adult_BKT_COMID_logDens.corr_S$boot$boot.summary$predicted$y))[,10]),
+                                             Avg_Corr = c(
+                                               # All BKT, all subregions
+                                               rep(BKT_COMID_logDens.corr$real$cbar, 300),
+                                               # All BKT, northern subregion
+                                               rep(BKT_COMID_logDens.corr_N$real$cbar, 300),
+                                               # All BKT, southern subregion
+                                               rep(BKT_COMID_logDens.corr_S$real$cbar, 300),
+                                               # YOY BKT, all subregions
+                                               rep(YOY_BKT_COMID_logDens.corr$real$cbar, 300),
+                                               # YOY BKT, northern subregion
+                                               rep(YOY_BKT_COMID_logDens.corr_N$real$cbar, 300),
+                                               # YOY BKT, southern subregion
+                                               rep(YOY_BKT_COMID_logDens.corr_S$real$cbar, 300),
+                                               # Adult BKT, all subregions
+                                               rep(Adult_BKT_COMID_logDens.corr$real$cbar, 300),
+                                               # Adult BKT, northern subregion
+                                               rep(Adult_BKT_COMID_logDens.corr_N$real$cbar, 300),
+                                               # Adult BKT, southern subregion
+                                               rep(Adult_BKT_COMID_logDens.corr_S$real$cbar, 300)))
 
-# Code for a horizontal version
-plot_horiz <- plot_grid(YOY_BKT.COMID.logDens.synch.plot, Adult_BKT.COMID.logDens.synch.plot, BKT.COMID.logDens.synch.plot, 
-                        nrow = 1)
+# Rearrange the AgeClass category
+compound_density_corrgram.data$AgeClass <- factor(compound_density_corrgram.data$AgeClass,
+                                                  levels = c("All", "Adult", "YOY"))
 
-# create labels for the gridded plot
-x.lab <- textGrob("Pairwise Euclidean Distance (km)", gp = gpar(fontsize = 12))
-y.lab <- textGrob("Correlation", rot = 90, gp = gpar(fontsize = 12))
-
-BKT_COMID_logDens_griddedPlot <- grid.arrange(arrangeGrob(plot, left = y.lab, bottom = x.lab), 
-                                              vp = viewport(height = unit(0.8, "npc"),
-                                                            width = unit(0.8, "npc")))
-
-# Horizontal version:
-BKT_COMID_logDens_griddedPlot_horiz <- grid.arrange(arrangeGrob(plot_horiz, left = y.lab, bottom = x.lab), 
-                                                    vp = viewport(height = unit(0.8, "npc"),
-                                                                  width = unit(0.8, "npc")))
-
-# save plots
-# ggsave("/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/BKT_COMID_logDens_griddedPlot.jpeg",
-#        plot = BKT_COMID_logDens_griddedPlot,
-#        width = 5, height = 9)
-# 
-# ggsave("/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/BKT_COMID_logDens_griddedPlot_horiz.jpeg",
-#        plot = BKT_COMID_logDens_griddedPlot_horiz,
-#        width = 15, height = 4)
-
-
+compound_density_corrgram.plot <- ggplot(compound_density_corrgram.data) + 
+  # Estimate
+  geom_line(aes(x = x,
+                y = y)) +
+  # Envelope
+  geom_ribbon(aes(x = x,
+                  ymin = ymin,
+                  ymax = ymax),
+              alpha = 0.5) +
+  # Average synchrony
+  geom_hline(aes(yintercept = Avg_Corr),
+             linetype = "dashed") +
+  geom_hline(yintercept = 0) +
+  lims(x = c(0, 450),
+       y = c(-0.25, 1)) +
+  theme_classic() +
+  labs(x = "Distance Class (km)",
+       y = "Correlation") +
+  facet_grid(AgeClass ~ Subregion)
 #####################
 # and combine summary stats into a table
-# Mean
-density_mean_synchs <- c(summary(BKT.COMID.logDens.corr)$Regional.synch,
-                         summary(YOY_BKT.COMID.logDens.corr)$Regional.synch,
-                         summary(Adult_BKT.COMID.logDens.corr)$Regional.synch)
-# Max
-density_max_synchs <- c(max(BKT.COMID.logDens.corr.pred.df$y),
-                        max(YOY_BKT.COMID.logDens.corr.pred.df$y),
-                        max(Adult_BKT.COMID.logDens.corr.pred.df$y))
+Corr_Stats <- compound_density_corrgram.data %>% 
+  group_by(AgeClass,
+           Subregion) %>% 
+  summarise(Mean_Corr = first(Avg_Corr),
+            Max_Corr = max(y))
 
-density_summStats <- data.frame(Stage = c("All BKT", "YOY BKT", "Adult BKT"),
-                                `Mean Correlation` = density_mean_synchs,
-                                `Max Correlation` = density_max_synchs)
 
 #write.table(density_summStats, "BKT log Pred Density Summary Stats.csv")
 

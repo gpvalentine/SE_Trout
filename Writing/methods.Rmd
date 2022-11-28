@@ -1,91 +1,94 @@
 ---
 title: ''
-output: pdf_document
+output: bookdown::pdf_document2
 date: "`r Sys.Date()`"
 ---
 
 # Methods
+## Study Species
+Brook trout are culturally and economically important, particularly in their native range. They are a charismatic game species, one of the most popular freshwater sportfish in the US. They are the only salmonid native to the Eastern US, and the official fish of nine states. Native brook trout can be found distributed from the Appalachian Mountains in northern Georgia to the coasts of Newfoundland and Labrador. Brook trout spawn in fall, whereupon their eggs overwinter to hatch in early spring. They reach maturity at one year. Brook Trout are highly sensitive to water temperature, and cannot withstand prolonged temperatures above 22-24$^\circ$C [@eaton1995; @wehrly2007]. Spawning is deleteriously effected by high summer and fall temperatures [@warren2012]. Redds are scoured and young brook trout are swept away by high flows during winter and spring months [@kanno2015]. Because of their high environmental specificity, brook trout are a common aquatic indicator species. Due in part to this sensitivity, they have experienced tremendous declines, particularly in their southern native range [@hudy2008].  
+
+Theoretical and empirical evidence suggests that if spatial synchrony occurs in brook trout, it is likely due to the Moran Effect, where environmental influences impose synchrony on populations [@moran1953]. In a 2016 study, @kanno2016 found that seasonal air temperature and precipitation led to spatial synchrony in young-of-year (YOY) brook trout, but not in adults. Spatial synchrony has been described in other stream-dwelling salmonids such as Brown Trout (*Salmo trutta*) [@cattaneo2003; lobon-cervia2007a; @zorn2007]. This synchrony is usually driven by periods of high discharge in winter and spring. Synchrony due to dispersal or predators is not common in other stream salmonids. Despite these indications of synchrony in brook trout, no study has attempted a comprehensive analysis of spatial synchrony in this species. There is an urgent need for measures that can conserve healthy populations of brook trout across their native range. A clear understanding of the role that spatial synchrony plays in both their dynamics and threatened status will be critical to effective management.
+
 ## Study Area and Dataset
-* The study area for this analysis is the southern native range of Brook Trout, specifically the southeastern USA. Sites can be found from the southern Appalachian Mountains in northern Georgia to northern Maryland, with outliers as far north as Pennsylvania (\@ref{fig:sites_map.fig}). Areas such as Great Smoky Mountain National Park, Shenandoah National Park, and several long-term study sites have particularly high spatial and temporal coverage. We divided the northern and southern subregions at 37.13$^\circ$ latitude – that of Radford, VA in the New River Valley.
-```{r sites_map, fig.cap = "Sites considered in this analysis"}
+Our study area comprises the far southern and eastern native range of brook trout in the USA. Sites can be found from the southern Appalachian Mountains in Georgia to northern Maryland (Fig. \@ref(fig:sites-map)). Conserved and managed areas such as Great Smoky Mountain National Park, Shenandoah National Park, and several long-term study sites have particularly high spatial and temporal coverage. We divided the northern and southern subregions at 37.13$^\circ$ latitude – that of Radford, VA in the New River Valley.
+
+```{r sites-map, fig.cap = "Sites considered for the present analysis"}
 sites_map.plot
 ```
 
-* Brook Trout data were compiled from 13 state and federal sources across the Eastern US (\@ref(tab:sources_table)).
-* Our dataset consisted of (1) individual trout observations, (2) sample-level observations, and (3) site-level details. Individual trout observations include total length (mm) and weight (g). Sample-level observations include date and number of electrofishing passes. Site-level details include National Hydrography Dataset Plus (NHDPlus) stream segment common identifier (COMID), latitude and longitude (decimal degrees), elevation (m), length and average width (m).
-* All data were collected by backpack electrofishing in wadeable streams between 1958 and 2020. Most of the sampling occurred in yearly summer surveys conducted at the same sites by fisheries managers and technicians, although rare and one-off surveys at new sites are present as well. Samples taken in lakes and ponds, as well as those of hatchery-born fish, were excluded. We accounted for measurement errors by removing individuals with weight >2 SD from the mean of each 10mm length category following @harris2020. Missing elevations were estimated with the Amazon Terrain Tiles elevation model using the elevatr package in R [@amazon2017; @hollister2021; @rcoreteam2022].
-* YOY Brook Trout were defined as those <= 90mm total length, while adults were defined as those >90mm total length.
-* An important consideration for our analyses was the scale of autocorrelation. Since synchrony can arise from individual dispersal, we summarized Brook Trout observations at a scale equal to greater than that at which the species typically disperses. While some individual in some populations have been known to move great distances [@gowan1994], southern Appalachian Brook Trout typically remain within several hundred meters of their hatching locations [@hudy2010; @rodriguez2002]. For this reason and to allow the association of segment-level covariates with our data, we analyzed Brook Trout observations by stream segment, defined by the USGS as a reach of a stream delineated by either its beginning and a confluence, or by two confluences. The average stream segment length within our dataset is 3.22 km.
+We compiled brook trout data from 13 state and federal sources within the study region (Table \@ref(tab:sources-table)). Data consisted of (1) individual trout observations, (2) sample-level observations, and (3) site-level details. Individual trout observations include total length (mm) and weight (g). Sample-level observations include date and number of electrofishing passes. Site-level details include National Hydrography Dataset Plus (NHDPlus) stream segment common identifier (COMID), latitude and longitude (decimal degrees), elevation (m), length and average width (m).  
+
+All brook trout data were collected by backpack electrofishing in wadeable streams between 1958 and 2020. A combination of single- and multipass sampling methods were employed (single: `r round(passes_pcts.table[1,3], 1)`%, multi: `r round(passes_pcts.table[2,3], 1)`%). Where multipass depletion sampling was conducted, standardized sampling protocols for the southern US region were followed [@troutcommittee1992]. This included the use of block nets or cobble dams to serve as barriers for movement in or out of the reach being sampled. Where natural barriers to movement existed, block nets or cobble dams were not used. A majority of sampling occurred in annual summer surveys conducted at the same sites. Samples taken in lakes and ponds, as well as observations of hatchery-born fish, were excluded. We also excluded observations from sites with historical population makeups of less than 10% brook trout. We accounted for measurement errors by removing weights of individuals with weight >3 SD from the mean of each 10mm length category following @harris2020. Missing elevations were estimated with the Amazon Terrain Tiles elevation model using the elevatr package in R [@amazon2017; @hollister2021; @rcoreteam2022]. YOY brook trout were defined as those <= 90mm total length, while adults were defined as those >90mm total length.  
+
+We considered the effects of the following climate variables: summer high temperature, winter high flows, and spring high flows. Daily temperature predictions for each stream segment in our trout dataset were obtained from the DAYMET model [@thornton2014; @thornton1997; @thornton2021] using the *daymetr* package in R [@hufkens2018]. We summarized summer high temperature as the mean of daily 90th percentile estimates during the summer months (June-September). Monthly flow predictions for each stream segment were obtained from the NHDPlus V2 [@USGS2016]. We summarized winter and spring high flows as maximum of monthly 90th percentile flow estimates. We defined winter as December - February, and spring as March – May. These climate variables were calculated for the years 1981 – 2015 (the earliest year for which DAYMET data were available and the latest year for which NHDPlus flow estimates were available). All covariates were centered and scaled.  
+
+An important consideration for our analyses was the scale of autocorrelation. While individual brook trout in some populations have been known to move great distances [@gowan1994], southern Appalachian brook trout typically remain within several hundred meters of their hatching locations [@hudy2010; @rodriguez2002]. We accounted for dispersal by summarizing brook trout observations at a scale equal to greater than that at which the species typically disperses. For this reason and to allow the association of segment-level covariates with our data, we analyzed brook trout observations by stream segment, defined by the USGS as a length of a stream delineated by either its beginning and a confluence, or by two confluences. The average stream segment length within our dataset is 3.22 km.  
+
+```{r sources-table}
+# kable(,
+#       caption = "Data sources by agency.")
+```
+
 
 ## Correlogram Analysis
-* We quantified the scale of spatial synchrony using nonparametric spatial covariance functions in the *ncf* package for R [@bjornstad2022; @bjornstad2001], from which we extracted estimates of both initial and average spatial correlation and the distances at which spatial covariance occurs. We define the scale of synchrony as the distance at which the correlation between two sites is significantly higher than the sample average. This scale is commonly referred to as correlation length [@bjornstad2001].
-* We visually represented synchrony using spline correlograms, which portray the spatial decay in pairwise correlation between sites. In the context of a correlogram, the correlation length may be interpreted as the shortest distance at which the confidence envelope of the spline function intercepts the x-axis.
-* We analyze synchrony separately by age class because Brook Trout life history suggests that YOY and adults are affected by different environmental drivers. Newly hatched fry are poor swimmers, and can be swept away by winter and spring flooding that adults can otherwise withstand. We also separate age classes because prior research suggests that YOY can display synchrony even when adults don’t [@kanno2016].
-* In addition to analyzing age classes separately at the regional level, we further analyzed them separately at the subregional level. Again, we used the 37.13$^\circ$ line of latitude as a cutoff.
-* We selected for sites with $\geq$ 5 years of data (hereafter “long term sites”) to ensure longevity in time series. We further filtered for observations made between the years 1980 and 2015, where density of surveys was highest and when covariates were available for the population model. Lastly, for this analysis we considered only multipass electrofishing data, which allows abundance estimates based on depletion.
-* Abundances at each sample were predicted using the “removal” function in the *FSA* package for R [@ogle2022].
-* Using these predicted abundances, we then calculated average abundance for each year, and from there the natural log of average density (fish/1000 m$^2$). This resulted in a measurement at each unique and segment and year.
-* For stream segments and years where data were not collected (__% of observations), we substituted average log density for the given segment during the study period.
-* We calculated 95% confidence intervals on the correlograms using the bootstrap algorithm included in the *ncf* package.
-* We truncated pairwise distances to 2/3 the total distance observed following @fletcher2018.
+We quantified the scale of spatial synchrony using nonparametric spatial covariance functions in the *ncf* package for R [@bjornstad2022; @bjornstad2001], from which we extracted estimates of both initial and average spatial correlation and the distances to which spatial covariance extends. We define the scale of synchrony as the distance at which the correlation between two segments is significantly higher than the sample average. This scale is commonly referred to as correlation length [@bjornstad2001]. We visually represented synchrony using spline correlograms, which portray the spatial decay in pairwise correlation between segments. In the context of a correlogram, the correlation length may be interpreted as the shortest distance at which the confidence envelope of the spline function intercepts the x-axis. We calculated 95% confidence intervals for the correlograms using the bootstrap algorithm included in the *ncf* package. We truncated pairwise lag distances to 2/3 the total distance observed following @fletcher2018.  
+
+In addition to analyzing life stages separately at the regional level, we further analyzed them separately at the subregional level. Again, we used the 37.13$^\circ$ line of latitude as a cutoff. We selected for segments with $\geq$ 5 years of data (hereafter “long term segments”) to ensure longevity in time series. We further filtered for observations made between the years 1995 and 2015, where density of surveys was highest and when covariates were available for the population model. Lastly, for this analysis we considered only multipass electrofishing data, which allows abundance estimates based on depletion.  
+
+Abundances at each sample were predicted using the “removal” function in the *FSA* package for R [@ogle2022]. Using these predicted abundances, we then calculated average abundance for each year, and from there the natural log of average density (fish/1000 m$^2$). This resulted in a measurement at each unique segment and year. For stream segments and years where data were not collected (47% of observations), we substituted average log density for the given segment during the study period. A simulation study detailed in Appendix \@ref(simulation-for-missing-data-in-correlogram-analysis) demonstrates that imputation of segment means for 47% of data does not significantly change interpretations of correlograms as compared to 0% of data.  
+
+Our spline correlogram analysis utilized Brook Trout counts from __ segments over the __ -year period from 1995-2015. The YOY-only analysis included counts from __ segment, while the adult-only analysis included counts from __ segments
 
 ## N-Mixture Model
-* We used a Bayesian hierarchical N-mixture model [@royle2004] to measure synchrony in Brook Trout populations and to identify drivers of synchronous dynamics. This model structure also allows us to quantify covariate effects on abundance.
-* Bayesian methods, which define probabilistic distributions of parameters given data, can more readily describe parameter uncertainty than can null hypothesis testing [@wade2000].
-* We modeled the natural log of Brook Trout density (fish/1000 m$^2$) as a function of the environmental variables average 90th percentile summer temperature in the previous year, maximum 90th percentile winter flow, and maximum 90th percentile spring flow. Temperature predictions were obtained from the DAYMET model [@thornton2014; @thornton1997; @thornton2021] using the *daymetr* package in R [@hufkens2018]. Flow predictions were obtained from the NHDPlus V2 [@USGS2016]. These summary variables were calculated for the years 1981 – 2015 (the earliest year for which DAYMET data were available and the latest year for which flow estimates were available). We defined summer as June – September, winter as December - February, and spring as March – May.
-* Adapting the standard N-mixture model to allow our removal sampling data at unique site $i = 1,...,n$, and year $t = 1,...,T$ for each of $j = 1,...,3$ electrofishing passes, we create the data model 
-$$
+We used a Bayesian hierarchical N-mixture model [@royle2004] to measure synchrony in brook trout populations and to identify climate drivers of synchronous dynamics. This model structure also allows us to quantify covariate effects on abundance. We modeled the natural log of brook trout density (fish/1000 m$^2$) as a function of the environmental variables average 90th percentile summer temperature in the previous year, maximum 90th percentile winter flow, and maximum 90th percentile spring flow. We analyzed counts of Brook Trout abundance from __ unique sites over a 34-year period from 1981 to 2015.  
+
+Adapting the standard N-mixture model to allow our removal sampling data at unique segment $i = 1,...,n$, and year $t = 1,...,T$ for each of $j = 1,...,3$ electrofishing passes, we create the data model
+
 \begin{equation}
-  y_{i,1,t} \sim \text{binomial}(N_{i,t}, p_s)
-  (\#eq:observationModel1)
+  y_{i,j,t} \sim 
+    \begin{cases}
+      \text{binomial}(N_{i,t}, p_s) & \text{if } j = 1\\
+      \text{binomial}(N_{i,t} - \sum_{j=2}^{3}y_{i,j,t}, p_s) & \text{if } j > 1
+    \end{cases}
+  (\#eq:observationModel)
 \end{equation}
-$$
-for pass $j = 1$ where $N_{i,t}$ is abundance in year $t$ at reach $i$. Here, $p_s$ represents the detection probability for data source $s = 1, ...,S$.
-* For subsequent electrofishing passes ($j > 1$), we model the observed removal sampling data as
-$$
+
+where $N_{i,t}$ is abundance in year $t$ at segment $i$. Here, $p_s$ represents the capture probability (of individuals) for data source $s = 1, ...,S$. We model abundance separately for passes $j > 1$ because there are $\sum_{j=2}^{3}y_{i,j,t}$ fewer individuals in the population after removing them in each pass. We modeled abundance in each pass conditional on local density $\lambda_{i,t}$ (fish/1000m$^2$) as
+
 \begin{equation}
-  y_{i,j,t} \sim \text{binomial}(N_{i,t} - \sum_{j=1}^{J}y_{i,j,t}, p_s)
-  (\#eq:observationModel2)
-\end{equation}
-$$
-because there are $\sum_{j=1}^{J}y_{i,j,t}$ fewer individuals in the population after removing them in each pass.
-* We modeled abundance conditional on local density $\lambda_{i,t}$ (fish/1000m$^2$) as
-$$
-\begin{equation}
-  N_{i,t} \sim \text{Poisson}(\frac{a_i}/{1000}\lambda_{i,t})
+  N_{i,t} \sim \text{Poisson}(\frac{a_i}{1000}\lambda_{i,t})
   (\#eq:processModel1)
 \end{equation}
-$$
-where $a_i$ is the area of the given stream segment. Local density was represented as a function of segment-level environmental covariates $\bf{x}_{i,t}$ using the log-link function
-$$
+
+where $a_i$ is the area (length $*$ median wetted width) of the given stream segment. Local density was represented as a function of segment-level environmental covariates $\bm{x}_{i,t}$ using the log-link function
+
 \begin{equation}
-  \text{log}(\lambda_{i,t}) = \alpha_i + \bf{x}_{i,t}\bf{\beta} + \epsilon_t + \gamma_{i,t}
+  \text{log}(\lambda_{i,t}) = \alpha_i + \bm{x}_{i,t}\bm{\beta}_i + \epsilon_t + \gamma_{i,t}
   (\#eq:processModel2)
 \end{equation}
-$$
-where $\epsilon_t$ and $\gamma_{i,t}$ represent spatially- and spatiotemporally-structured random effects, respectively. Priors on $\alpha_i$ and $\bf{\beta}$ were $\alpha_i \sim \text{normal}(0, 1000)$ and $\bf{\beta} \sim \text{normal}(\bf{\mu}_\beta, \bf{\sigma}^2_\beta)$ where $\bf{\mu}_\beta \sim \text{normal}(0, 100)$ and $\bf{\sigma}_\beta) \sim \text{uniform}(0, 10)$.
-* The random effects are assumed to be independent with distributions $\epsilon_t \sim \text{normal}(0, \sigma^2_\epsilon)$ X $\sigma^2_\epsilon \sim \text{uniform}(0, 10)$ and $\gamma_{i,t} \sim \text{normal}(0, \sigma^2_{\gamma,i})$ X $\sigma_{\gamma,i} \sim \text{uniform}(0, 10)$. The $\epsilon_t$ term represents the between-year variation in density that is synchronous to all sites, and the $\gamma_{i,t}$ term represents the variation that is site-specific, i.e. asynchronous. 
-* Following @grosbois2009 and @lahoz-monfort2011, we then use the estimated variances of the two random effect terms to calculate a segment-specific intraclass correlation coefficient (ICC):
-$$
+
+where $\alpha_i$ represents average density at site $i$ and $\bm{\beta}_i$ represents a vector of site-specific covariate effects. $\epsilon_t$ and $\gamma_{i,t}$ represent spatially- and spatiotemporally-structured random effects, respectively. Priors on $\alpha_i$ and $\beta_i$ were $\alpha_i \sim \text{normal}(0, 1000)$ and $\beta_i \sim \text{normal}(\mu_\beta, \sigma^2_\beta)$ where $\mu_\beta \sim \text{normal}(0, 100)$ and $\sigma_\beta) \sim \text{uniform}(0, 10)$. The random effects are assumed to be independent with distributions $\epsilon_t \sim \text{normal}(0, \sigma^2_\epsilon)$ X $\sigma^2_\epsilon \sim \text{uniform}(0, 10)$ and $\gamma_{i,t} \sim \text{normal}(0, \sigma^2_{\gamma,i})$ X $\sigma_{\gamma,i} \sim \text{uniform}(0, 10)$. The $\epsilon_t$ term represents the between-year variation in density that is synchronous to all segments, and the $\gamma_{i,t}$ term represents the variation that is segment-specific, i.e. asynchronous.  
+
+Following @grosbois2009 and @lahoz-monfort2011, we then use the estimated variances of the two random effect terms to calculate a segment-specific intraclass correlation coefficient (ICC):
+
 \begin{equation}
   ICC_i = \frac{\hat{\sigma}^2_\epsilon}{\hat{\sigma}^2_\epsilon + \hat{\sigma}^2_{\gamma,i}}
   (\#eq:ICC)
 \end{equation}
-$$
-This ICC value serves as a measure of the relative snchrony of the subpopulation in segment $i$ relative to the population as a whole. Large ICC values indicate that the given subpopulation is synchronous with the larger population, while small ICC values indicate asynchrony.
-* The effects of environmental covariates on both overall and reach-specific synchrony can be calculated by comparing variances from two models: a model with environmental covariate(s) and an null model with no environmental covariates. Following @grosbois2009 and @lahoz-monfort2011, we calculate $C_\epsilon$ and $C_\gamma$:
-$$
+
+The ICC serves as a measure of the relative synchrony of the local population in segment $i$ relative to the population as a whole. Large ICC values indicate that the given subpopulation is synchronous with the larger population, while small ICC values indicate asynchrony.  
+
+The effects of environmental covariates on both overall and segment-specific synchrony can be calculated by comparing variances from two models: a model with environmental covariate(s) and an null model with no environmental covariates. Following @grosbois2009 and @lahoz-monfort2011, we calculate $C_\epsilon$ and $C_\gamma$:
+
 \begin{equation}
-  \begin{align}
-  C_\epsilon &= \frac{\hat{\sigma}^2_\epsilon(\text{res})}{\hat{\sigma}^2_\epsilon(\text{tot})}
-  (\#eq:C_eps)
-  C_\gamma &= \frac{\hat{\sigma}^2_{\gamma,i}(\text{res})}{\hat{\sigma}^2_{\gamma,i}(\text{tot})}  
-  (\#eq:C_gam)
-  \end{align}
+  C_\epsilon = \frac{\hat{\sigma}^2_\epsilon(\text{res})}{\hat{\sigma}^2_\epsilon(\text{tot})}
+  (\#eq:C-eps)
 \end{equation}
-$$
-* We fit a total of fourteen models: one full model and one null model each for YOY and adults, as well as one partial model per covariate each for YOY and adults. These models fit to all sites are hereafter the “regional” models. We further fit a full model each for YOY and adults in the northern and southern halves of the study region, hereafter the “subregional” models.
-* We implemented our models utilizing Markov Chain Monte Carlo (MCMC) sampling using JAGS with the *jagsUI* package in R [@kellner2021]. Code can be found in Appendix X.
-* After a burn-in period of 25,000 samples (50,000 for subregional models), three chains were run until 100,000 iterations were reached. We used a  thinning rate of 1.
-* To evaluate the performance of our model, we completed posterior predictive checks for  mean and coefficient of variation.
-* We report posterior means as point estimates and 95% highest posterior density credible intervals as estimates of uncertainty.
+
+\begin{equation}
+  C_\gamma = \frac{\hat{\sigma}^2_{\gamma,i}(\text{res})}{\hat{\sigma}^2_{\gamma,i}(\text{tot})}
+  (\#eq:C-gam)
+\end{equation}
+
+We fit a total of fourteen models: one full model and one null model each for YOY and adults, as well as one partial model per covariate each for YOY and adults. These models fit to all segments are hereafter the “regional” models. We further fit a full model each for YOY and adults in the northern and southern halves of the study region, hereafter the “subregional” models. We implemented our models utilizing Markov Chain Monte Carlo (MCMC) sampling using JAGS with the *jagsUI* package in R [@kellner2021]. Code can be found in Appendix X. After a burn-in period of 25,000 samples (50,000 for subregional models), three chains were run until 100,000 iterations were reached. We used a  thinning rate of 1. To evaluate the performance of our models, we completed posterior predictive checks for  mean and coefficient of variation. We report posterior means as point estimates and 95% highest posterior density credible intervals as estimates of uncertainty.

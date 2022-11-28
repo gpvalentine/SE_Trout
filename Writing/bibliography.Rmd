@@ -3,6 +3,6 @@ title: ''
 output: pdf_document
 ---
 
-# Bibliography
+# References
 
-\bibliography{bibliography}
+<div id="refs"></div>

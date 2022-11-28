@@ -43,6 +43,23 @@ BKT_Sites <- SE_Ind_Final %>%
   mutate(pct_BKT = prop.table(count) * 100) %>% 
   filter(SPP == "BKT",
          pct_BKT >= 10)
+
+# create a crosswalk file to associate the agency with the source of the data
+source_agency_crosswalk <- data.frame(Source = unique(SE_Site_Final$Source),
+                                      Agency = c("GA DNR",
+                                                 "NPS GSMNP",
+                                                 "ME DFW",
+                                                 "MD DNR",
+                                                 "NCWRC",
+                                                 "NPS Shen",
+                                                 "USGS",
+                                                 "Clemson U",
+                                                 "TWRA",
+                                                 "TWRA",
+                                                 "USFWS",
+                                                 "VT FWD",
+                                                 "VA DWR",
+                                                 "WV DNR"))
   
 
 ########################################################
@@ -50,7 +67,7 @@ BKT_Sites <- SE_Ind_Final %>%
 # COMID/Site data for model
 COMID_data <- SE_Site_Final %>% 
   filter(SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
-         Lat <= 43, # filter for just sites south of the north border of PA
+         Lat <= 39.716667, # filter for just sites south of the Mason-Dixon Line
          COMID %in% SE_COMID_flow_covars$COMID, # filter for COMIDs for which we have flow data - there are several sites in Maine with no flow
          COMID %in% SE_COMID_temp_covars$COMID) %>% # same goes for temperature - there's one site in Maine with no temp
   group_by(COMID) %>% 
@@ -63,7 +80,7 @@ COMID_data <- SE_Site_Final %>%
   
 # Make a dataframe of the COMIDs and years when sampling happened
 SampleYears <- SE_Sample_Final %>% 
-  filter(SiteID %in% BKT_Sites$SiteID,) %>%  # Filter to sites with records of BKT
+  filter(SiteID %in% BKT_Sites$SiteID) %>%  # Filter to sites with records of BKT
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
   dplyr::select(COMID, Year, Source) %>% 
@@ -72,6 +89,17 @@ SampleYears <- SE_Sample_Final %>%
          !is.na(COMID),
          Year >= 1981, # Filter to one year after the earliest year that we have temperature data
          Year <= 2015)  # Filter to the latest year that we have flow data
+
+# What was the percentage of single- vs multipass electrofishing?
+passes_pcts.table <- SE_Sample_Final %>% 
+  left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+  filter(COMID %in% COMID_data$COMID,  # Filter because we can only use data from COMIDs with area and coordinates
+         !is.na(NumPasses)) %>%
+  mutate(Multipass = ifelse(NumPasses > 1, 1, 0)) %>% 
+  group_by(Multipass) %>% 
+  summarise(Count = n()) %>% 
+  mutate(Percent = Count/sum(Count) * 100) %>% 
+  as.data.frame()
 
 ## YOY
 # Tally YOY counts by pass at each COMID, year combination
@@ -235,8 +263,6 @@ p3_adult <- Adult_BKT_passCounts_SampleYears %>%
 # Temperature
 Mean_Max_Summer_Temp_Scaled <- SE_COMID_temp_covars %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
-         # Year >= 1980,  # Constrain to the latest year for which we have flow data
-         # Year != 1982) %>% # Filter out data from 1982, for which there is no trout data
          Year %in% (YOY_BKT_passCounts_SampleYears$Year - 1)) %>% # filter for years which we have trout data, minus one year b/c we are using temp from the prior year
   pivot_wider(names_from = Year,
               values_from = Mean_Max_Summer_Temp_Scaled) %>% 
@@ -249,8 +275,6 @@ Mean_Max_Summer_Temp_Scaled <- Mean_Max_Summer_Temp_Scaled %>%
 # Winter flow
 Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
-         # Year >= 1980,  # Constrain to the latest year for which we have flow data
-         # Year != 1982) %>% # Filter out data from 1982, for which there is no trout data
          Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
   dplyr::select(-Max_0.9Q_SpringFlow_Scaled) %>% 
   pivot_wider(names_from = Year,
@@ -264,8 +288,6 @@ Max_0.9Q_WinterFlow_Scaled <- Max_0.9Q_WinterFlow_Scaled %>%
 # Spring flow
 Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
-         # Year >= 1980,  # Constrain to the latest year for which we have flow data
-         # Year != 1982) %>% # Filter out data from 1982, for which there is no trout data
          Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
   dplyr::select(-Max_0.9Q_WinterFlow_Scaled) %>% 
   pivot_wider(names_from = Year,
@@ -472,7 +494,9 @@ YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                 parallel = T,
                                 inits = init_vals)
 
-YOY_BKT_nMix_full_params <- as.data.frame(YOY_BKT_nMix_full$summary)
+#YOY_BKT_nMix_full_params <- as.data.frame(YOY_BKT_nMix_full$summary)
+YOY_BKT_nMix_full_params <- MCMCsummary(YOY_BKT_nMix_full,
+                                        HPD = T)
 
 
 ## Adults
@@ -635,7 +659,9 @@ Adult_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-Adult_BKT_nMix_full_params <- as.data.frame(Adult_BKT_nMix_full$summary)
+#Adult_BKT_nMix_full_params <- as.data.frame(Adult_BKT_nMix_full$summary)
+Adult_BKT_nMix_full_params <- MCMCsummary(Adult_BKT_nMix_full,
+                                        HPD = T)
 
 ################################
 # Full Models for north vs south regions of SE US
@@ -762,8 +788,10 @@ YOY_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
                                       parallel = T,
                                       inits = init_vals)
 
-YOY_BKT_nMix_full_N_params <- as.data.frame(YOY_BKT_nMix_full_N$summary)
+#YOY_BKT_nMix_full_N_params <- as.data.frame(YOY_BKT_nMix_full_N$summary)
 #MCMCtrace(YOY_BKT_nMix_full_N_params, params = c("s2.gam[86]", "alpha[91]"), ISB = F, pdf = F, Rhat = T)
+YOY_BKT_nMix_full_N_params <- MCMCsummary(YOY_BKT_nMix_full_N,
+                                          HPD = T)
 
 # SOUTH
 # Bundle data
@@ -812,9 +840,9 @@ nb <- 50000
 nt <- 1
 
 # Fit Model
-YOY_BKT_NMix_full_S <- jagsUI::jags(data = jags_data,
+YOY_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/YOY_BKT_NMix_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -822,7 +850,9 @@ YOY_BKT_NMix_full_S <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-YOY_BKT_NMix_full_S_params <- as.data.frame(YOY_BKT_NMix_full_S$summary)
+#YOY_BKT_NMix_full_S_params <- as.data.frame(YOY_BKT_NMix_full_S$summary)
+YOY_BKT_nMix_full_S_params <- MCMCsummary(YOY_BKT_nMix_full_S,
+                                          HPD = T)
 
 ## Adult analysis
 # Models can stay the same, we just subset the data
@@ -936,7 +966,7 @@ nt <- 1
 # Fit Model
 Adult_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Data/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -949,7 +979,7 @@ Adult_BKT_nMix_full_S_params <- MCMCsummary(Adult_BKT_nMix_full_S,
 ################################
 # Partial model with just summer temperature as environmental covariate
 ## YOY
-sink("YOY_BKT_nMix_partialSummTemp.jags")
+sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSummTemp.jags")
 cat("
 model{
   
@@ -1086,7 +1116,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 YOY_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "YOY_BKT_nMix_partialSummTemp.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSummTemp.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -1094,10 +1124,11 @@ YOY_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-YOY_BKT_nMix_partialSummTemp_params <- as.data.frame(YOY_BKT_nMix_partialSummTemp$summary)
+YOY_BKT_nMix_partialSummTemp_params <- MCMCsummary(YOY_BKT_nMix_partialSummTemp,
+                                            HPD = T)
 
 ## Adult
-sink("Adult_BKT_nMix_partialSummTemp.jags")
+sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSummTemp.jags")
 cat("
 model{
   
@@ -1233,7 +1264,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 Adult_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
                                                    parameters.to.save = jags_params,
-                                                   model.file = "Adult_BKT_nMix_partialSummTemp.jags",
+                                                   model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSummTemp.jags",
                                                    n.chains = nc,
                                                    n.iter = ni,
                                                    n.burnin = nb,
@@ -1241,13 +1272,14 @@ Adult_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
                                                    parallel = T,
                                                    inits = init_vals)
 
-Adult_BKT_nMix_partialSummTemp_params <- as.data.frame(Adult_BKT_nMix_partialSummTemp$summary)
+Adult_BKT_nMix_partialSummTemp_params <- MCMCsummary(Adult_BKT_nMix_partialSummTemp,
+                                                     HPD = T)
 
 ################################
 # Partial model with just winter flow as environmental covariate
 
 ## YOY
-sink("YOY_BKT_nMix_partialWintFlow.jags")
+sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialWintFlow.jags")
 cat("
 model{
   
@@ -1385,7 +1417,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 YOY_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parameters.to.save = jags_params,
-                                                   model.file = "YOY_BKT_nMix_partialWintFlow.jags",
+                                                   model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialWintFlow.jags",
                                                    n.chains = nc,
                                                    n.iter = ni,
                                                    n.burnin = nb,
@@ -1393,10 +1425,10 @@ YOY_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parallel = T,
                                                    inits = init_vals)
 
-YOY_BKT_nMix_partialWintFlow_params <- as.data.frame(YOY_BKT_nMix_partialWintFlow$summary)
+YOY_BKT_nMix_partialWintFlow_params <- MCMCsummary(YOY_BKT_nMix_partialWintFlow, HPD = T)
 
 ## Adult
-sink("Adult_BKT_nMix_partialWintFlow.jags")
+sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialWintFlow.jags")
 cat("
 model{
   
@@ -1533,7 +1565,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 Adult_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parameters.to.save = jags_params,
-                                                   model.file = "Adult_BKT_nMix_partialWintFlow.jags",
+                                                   model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialWintFlow.jags",
                                                    n.chains = nc,
                                                    n.iter = ni,
                                                    n.burnin = nb,
@@ -1541,11 +1573,11 @@ Adult_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
                                                    parallel = T,
                                                    inits = init_vals)
 
-Adult_BKT_nMix_partialWintFlow_params <- as.data.frame(Adult_BKT_nMix_partialWintFlow$summary)
+Adult_BKT_nMix_partialWintFlow_params <- MCMCsummary(Adult_BKT_nMix_partialWintFlow, HPD = T)
 
 ################################
 # Partial model with just spring flow as environmental covariate
-sink("YOY_BKT_nMix_partialSprFlow.jags")
+sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSprFlow.jags")
 cat("
 model{
   
@@ -1683,7 +1715,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 YOY_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                 parameters.to.save = jags_params,
-                                                model.file = "YOY_BKT_nMix_partialSprFlow.jags",
+                                                model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSprFlow.jags",
                                                 n.chains = nc,
                                                 n.iter = ni,
                                                 n.burnin = nb,
@@ -1691,10 +1723,11 @@ YOY_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                 parallel = T,
                                                 inits = init_vals)
 
-YOY_BKT_nMix_partialSprFlow_params <- as.data.frame(YOY_BKT_nMix_partialSprFlow$summary)
+YOY_BKT_nMix_partialSprFlow_params <- MCMCsummary(YOY_BKT_nMix_partialSprFlow,
+                                                  HPD = T)
 
 ## Adult
-sink("Adult_BKT_nMix_partialSprFlow.jags")
+sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSprFlow.jags")
 cat("
 model{
   
@@ -1831,7 +1864,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 Adult_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                   parameters.to.save = jags_params,
-                                                  model.file = "Adult_BKT_nMix_partialSprFlow.jags",
+                                                  model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSprFlow.jags",
                                                   n.chains = nc,
                                                   n.iter = ni,
                                                   n.burnin = nb,
@@ -1839,11 +1872,12 @@ Adult_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
                                                   parallel = T,
                                                   inits = init_vals)
 
-Adult_BKT_nMix_partialSprFlow_params <- as.data.frame(Adult_BKT_nMix_partialSprFlow$summary)
+Adult_BKT_nMix_partialSprFlow_params <- MCMCsummary(Adult_BKT_nMix_partialSprFlow,
+                                                    HPD = T)
 
 ################################
 # Specify "null" model (no environmental covariates)
-sink("YOY_BKT_nMix_null.jags")
+sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_null.jags")
 cat("
 model{
   
@@ -1963,7 +1997,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 YOY_BKT_nMix_null <- jagsUI::jags(data = jags_data,
                                       parameters.to.save = jags_params,
-                                      model.file = "YOY_BKT_nMix_null.jags",
+                                      model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_null.jags",
                                       n.chains = nc,
                                       n.iter = ni,
                                       n.burnin = nb,
@@ -1971,10 +2005,11 @@ YOY_BKT_nMix_null <- jagsUI::jags(data = jags_data,
                                       parallel = T,
                                       inits = init_vals)
 
-YOY_BKT_nMix_null_params <- as.data.frame(YOY_BKT_nMix_null$summary)
+YOY_BKT_nMix_null_params <- MCMCsummary(YOY_BKT_nMix_null,
+                                        HPD = T)
 
 ## Adults
-sink("Adult_BKT_nMix_null.jags")
+sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_null.jags")
 cat("
 model{
   
@@ -2091,7 +2126,7 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 # Fit Model
 Adult_BKT_nMix_null <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Adult_BKT_nMix_null.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_null.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -2099,30 +2134,168 @@ Adult_BKT_nMix_null <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-Adult_BKT_nMix_null_params <- as.data.frame(Adult_BKT_nMix_null$summary)
+Adult_BKT_nMix_null_params <- MCMCsummary(Adult_BKT_nMix_null,
+                                          HPD = T)
+
+######################################
+### Post-Hoc
+######################################
+# Create a map of sites
+US_states <- map_data("state")
+
+sites_map_data <- SE_Site_Final %>% 
+  filter(COMID %in% p1_YOY$COMID) %>% 
+  left_join(source_agency_crosswalk)
+
+sites_map.plot <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = sites_map_data, 
+             aes(x = Long, y = Lat, color = Agency), alpha = 0.5) +
+  coord_map("albers",
+            parameters = c(29.5, 45.5),
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
+  labs(x = "Long",
+       y = "Lat",
+       color = "Source") +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
+
+######################################
+# Create a table of source data
+sources.table <- p1_YOY %>% 
+  pivot_longer(cols = 1:34,
+               names_to = Year)
+  group_by(Source)
 
 ###################
 ## ICC Values
 # Join site data to ICC values
 YOY_ICCs <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  .[858:1026,] %>% 
-  mutate(i = row_number()) %>% 
-  cbind(COMID = COMID_data$COMID) %>%
-  left_join(SE_Site_Final)
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data[,c(1,3,4)])
+
+# Export for Shiny app
+fwrite(YOY_ICCs, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Synchrony_App/YOY_ICCS.csv")
+
+YOY_ICCs_N <- YOY_BKT_nMix_full_N_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data_N[,c(1,3,4)])
+
+YOY_ICCs_S <- YOY_BKT_nMix_full_S_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data_S[,c(1,3,4)])
 
 Adult_ICCs <- Adult_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  .[858:1026,] %>% 
-  mutate(i = row_number()) %>% 
-  cbind(COMID = COMID_data$COMID) %>%
-  left_join(SE_Site_Final)
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data[,c(1,3,4)])
+
+Adult_ICCs_N <- Adult_BKT_nMix_full_N_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data_N[,c(1,3,4)])
+
+Adult_ICCs_S <- Adult_BKT_nMix_full_S_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data_S[,c(1,3,4)])
+
+# Do the most synchronous/asynchronous sites from the N/S show up in the the overall ICCs?
+YOY_highestICCs_map.plot <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = head(arrange(YOY_ICCs_N, desc(mean))), 
+             aes(x = Long, y = Lat), shape = 5) +
+  geom_point(data = head(arrange(YOY_ICCs_S, desc(mean))), 
+              aes(x = Long, y = Lat), shape = 1) +
+  geom_point(data = head(arrange(YOY_ICCs, desc(mean))), 
+              aes(x = Long, y = Lat), shape = 3) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -74),
+            ylim = c(34.5, 43)) +
+  labs(x = "Long",
+       y = "Lat",
+       #title = "Posterior ICC Means for YOY BKT",
+       color = "ICC") +
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
+
+YOY_lowestICCs_map.plot <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = head(arrange(YOY_ICCs_N, mean)),
+             aes(x = Long, y = Lat), shape = 5) +
+  geom_point(data = head(arrange(YOY_ICCs_S, mean)),
+             aes(x = Long, y = Lat), shape = 1) +
+  geom_point(data = head(arrange(YOY_ICCs, mean)), 
+             aes(x = Long, y = Lat), shape = 3) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -74),
+            ylim = c(34.5, 40)) +
+  labs(x = "Long",
+       y = "Lat",
+       #title = "Posterior ICC Means for YOY BKT",
+       color = "ICC") +
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
+
+Adult_highestICCs_map.plot <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = head(arrange(Adult_ICCs_N, desc(mean))), 
+             aes(x = Long, y = Lat), shape = 5) +
+  geom_point(data = head(arrange(Adult_ICCs_S, desc(mean))), 
+             aes(x = Long, y = Lat), shape = 1) +
+  geom_point(data = head(arrange(Adult_ICCs, desc(mean))), 
+             aes(x = Long, y = Lat), shape = 3) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -74),
+            ylim = c(34.5, 43)) +
+  labs(x = "Long",
+       y = "Lat",
+       #title = "Posterior ICC Means for Adult BKT",
+       color = "ICC") +
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
+
+Adult_lowestICCs_map.plot <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = head(arrange(Adult_ICCs_N, mean)), 
+             aes(x = Long, y = Lat), shape = 5) +
+  geom_point(data = head(arrange(Adult_ICCs_S, mean)), 
+             aes(x = Long, y = Lat), shape = 1) +
+  geom_point(data = head(arrange(Adult_ICCs, mean)), 
+             aes(x = Long, y = Lat), shape = 3) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -74),
+            ylim = c(34.5, 43)) +
+  labs(x = "Long",
+       y = "Lat",
+       #title = "Posterior ICC Means for Adult BKT",
+       color = "ICC") +
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
+
 
 # Plot ICC values on a map
-US_states <- map_data("state")
-
 # YOY
-YOY_ICC_map <- ggplot() +
+YOY_ICC_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
@@ -2131,13 +2304,14 @@ YOY_ICC_map <- ggplot() +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
-            ylim = c(34.5, 43)) +
+            ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       title = "Posterior ICC Means for YOY BKT",
+       #title = "Posterior ICC Means for YOY BKT",
        color = "ICC") +
   scale_color_viridis_c() +
-  theme_classic()
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
 
 # ggsave("BKT_Nmix_YOY_ICCs_Map.jpg",
 #        plot = YOY_ICC_map,
@@ -2149,7 +2323,7 @@ YOY_ICC_map <- ggplot() +
 #        dpi = "retina")
 
 # Adult
-Adult_ICC_map <- ggplot() +
+Adult_ICC_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
@@ -2158,13 +2332,14 @@ Adult_ICC_map <- ggplot() +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
-            ylim = c(34.5, 43)) +
+            ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       title = "Posterior ICC Means for Adult BKT",
+       #title = "Posterior ICC Means for Adult BKT",
        color = "ICC") +
   scale_color_viridis_c() +
-  theme_classic()
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
 
 # ggsave("BKT_Nmix_Adult_ICCs_Map.jpg",
 #        plot = Adult_ICC_map,
@@ -2177,7 +2352,10 @@ Adult_ICC_map <- ggplot() +
 
 # Is ICC correlated with any site-level variables?
 library(corrplot)
-YOY_corrPlot <- corrplot(cor(YOY_ICCs[,c(2,18:22)], method="spearman", use="pairwise.complete.obs"))
+ICC_corr_data <- YOY_ICCs %>% 
+  left_join(SE_Site_Final, by = "COMID")
+
+YOY_corrPlot <- corrplot(cor(ICC_corr_data[,c(2,14:18)], method="spearman", use="pairwise.complete.obs"))
 # get values
 YOY_corrPlot$corrPos
 # mean ICC is not really correlated with any of these site-level covars
@@ -2225,14 +2403,14 @@ C_Vals_Site <- data.frame(C_YOY_allCovs = numeric(),
 for (i in 1:nReps){
   print(i)
   # Calculate C.gams for the given site
-  C_Vals_Site[i, "C_YOY_allCovs"] <- 1 - (v13_YOY_full_params[688 + i, 1]/v13_YOY_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_Adult_allCovs"] <- 1 - (v13_Adult_full_params[688 + i, 1]/v13_Adult_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_YOY_partialSummTemp"] <- 1 - (v13_YOY_partialSummTemp_params[348 + i, 1]/v13_YOY_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_Adult_partialSummTemp"] <- 1 - (v13_Adult_partialSummTemp_params[348 + i, 1]/v13_Adult_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_YOY_partialWintFlow"] <- 1 - (v13_YOY_partialWintFlow_params[348 + i, 1]/v13_YOY_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_Adult_partialWintFlow"] <- 1 - (v13_Adult_partialWintFlow_params[348 + i, 1]/v13_Adult_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_YOY_partialSprFlow"] <- 1 - (v13_YOY_partialSprFlow_params[348 + i, 1]/v13_YOY_null_params[178 + i, 1])
-  C_Vals_Site[i, "C_Adult_partialSprFlow"] <- 1 - (v13_Adult_partialSprFlow_params[348 + i, 1]/v13_YOY_null_params[178 + i, 1])
+  C_Vals_Site[i, "C_YOY_allCovs"] <- 1 - (YOY_BKT_nMix_full_params[648 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_Adult_allCovs"] <- 1 - (Adult_BKT_nMix_full_params[648 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_YOY_partialSummTemp"] <- 1 - (YOY_BKT_nMix_partialSummTemp_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_Adult_partialSummTemp"] <- 1 - (Adult_BKT_nMix_partialSummTemp_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_YOY_partialWintFlow"] <- 1 - (YOY_BKT_nMix_partialWintFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_Adult_partialWintFlow"] <- 1 - (Adult_BKT_nMix_partialWintFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_YOY_partialSprFlow"] <- 1 - (YOY_BKT_nMix_partialSprFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  C_Vals_Site[i, "C_Adult_partialSprFlow"] <- 1 - (Adult_BKT_nMix_partialSprFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
 }
 
 # bind COMIDs to C.gam values
@@ -2252,8 +2430,8 @@ C_Val_YOY_SummTemp_map <- ggplot() +
              alpha = 0.5) +
   coord_map("bonne",
             lat0 = 40,
-            xlim = c(-85, -74),
-            ylim = c(34.5, 43)) +
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
        title = "Mean 0.9Q Summer Air\n Temperature (Year t-1)",
@@ -2271,8 +2449,8 @@ C_Val_YOY_WintFlow_map <- ggplot() +
              alpha = 0.5) +
   coord_map("bonne",
             lat0 = 40,
-            xlim = c(-85, -74),
-            ylim = c(34.5, 43)) +
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
        title = "Max 0.9Q Winter Flow (Year t)",
@@ -2290,8 +2468,8 @@ C_Val_YOY_SprFlow_map <- ggplot() +
              alpha = 0.5) +
   coord_map("bonne",
             lat0 = 40,
-            xlim = c(-85, -74),
-            ylim = c(34.5, 43)) +
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
        title = "Max 0.9Q Spring Flow (Year t)",
@@ -2304,139 +2482,140 @@ C_Val_YOY_SprFlow_map <- ggplot() +
 #                                     nrow = 1)
 
 # save plots
-ggsave("BKT_Nmix_Compound_C_Vals_SummTemp_Map.jpg",
-       plot = C_Val_YOY_SummTemp_map,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
-ggsave("BKT_Nmix_Compound_C_Vals_WintFlow_Map.jpg",
-       plot = C_Val_YOY_WintFlow_map,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
-ggsave("BKT_Nmix_Compound_C_Vals_SprFlow_Map.jpg",
-       plot = C_Val_YOY_SprFlow_map,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
+# ggsave("BKT_Nmix_Compound_C_Vals_SummTemp_Map.jpg",
+#        plot = C_Val_YOY_SummTemp_map,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
+# ggsave("BKT_Nmix_Compound_C_Vals_WintFlow_Map.jpg",
+#        plot = C_Val_YOY_WintFlow_map,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
+# ggsave("BKT_Nmix_Compound_C_Vals_SprFlow_Map.jpg",
+#        plot = C_Val_YOY_SprFlow_map,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
 
-
-# C_Vals_Site <- array(NA, dim = c(n.it, nReps, ncol(C_Vals)))
-# 
-# for (i in 1:n.it){
-#   for (j in 1:nReps){
-#     C_Vals_Site[i,j,1] <- 1 - (YOY_BKT_nMix_v13_full$sims.list$s2.gam[i]/YOY_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,2] <- 1 - (Adult_BKT_nMix_v13_full$sims.list$s2.gam[i]/Adult_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,3] <- 1 - (YOY_BKT_nMix_v13_partialSummTemp$sims.list$s2.gam[i]/YOY_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,4] <- 1 - (Adult_BKT_nMix_v13_partialSummTemp$sims.list$s2.gam[i]/Adult_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,5] <- 1 - (YOY_BKT_nMix_v13_partialWintFlow$sims.list$s2.gam[i]/YOY_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,6] <- 1 - (Adult_BKT_nMix_v13_partialWintFlow$sims.list$s2.gam[i]/Adult_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,7] <- 1 - (YOY_BKT_nMix_v13_partialSprFlow$sims.list$s2.gam[i]/YOY_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#     C_Vals_Site[i,j,8] <- 1 - (Adult_BKT_nMix_v13_partialSprFlow$sims.list$s2.gam[i]/Adult_BKT_nMix_v13_null$sims.list$s2.gam[i])
-#   }
-# }
 
 ################
 # Summarize covariate effects in table
 Cov_Effects <- data.frame(
   Covariate = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
                 "Max 0.9Q Winter Flow (Year t)",
-                "Max 0.9Q Spring Flow (Year t)"), times = 2),
-  Age_Class = c(rep("YOY", times = 3),
-                    rep("Adult", times = 3))) %>% 
+                "Max 0.9Q Spring Flow (Year t)"), times = 6),
+  Life_Stage = rep(c(rep("YOY", times = 3),
+                    rep("Adult", times = 3)), times = 3),
+  Subregion = c(rep("N+S", times = 6),
+                rep("N", times = 6),
+                rep("S", times = 6))) %>% 
   # add in jagsUI model summary values
-  cbind(rbind(v13_YOY_full_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),],
-              v13_Adult_full_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),])) %>% 
-  # and 95% highest density intervals
-  cbind(rbind(as.data.frame(MCMCpstr(YOY_BKT_nMix_v13_full, params = "mu.beta.cov", func = function(x)hdi(x, 0.95))),
-              as.data.frame(MCMCpstr(Adult_BKT_nMix_v13_full, params = "mu.beta.cov", func = function(x)hdi(x, 0.95)))))
+  cbind(rbind(YOY_BKT_nMix_full_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
+              Adult_BKT_nMix_full_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
+              YOY_BKT_nMix_full_N_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
+              Adult_BKT_nMix_full_N_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
+              YOY_BKT_nMix_full_S_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
+              Adult_BKT_nMix_full_S_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4]))
+
+# Reorder the subregions so the the N+S region plots first
+Cov_Effects$Subregion <- factor(Cov_Effects$Subregion, c("N+S", "N", "S"))
 
 # and make a plot to visualize
-cov_effects_plot <- ggplot(data = Cov_Effects) +
-  geom_linerange(aes(x = Covariate,
-                     ymin = mu.beta.cov.lower, #includes 95% highest density intervals
-                     ymax = mu.beta.cov.upper,
-                     color = Age_Class),
-                 position = position_dodge(.25),
-                 size = 0.75) +
-  geom_point(aes(x = Covariate,
-                 y = mean,
-                 color = Age_Class),
-             position = position_dodge(.25)) +
+cov_effects.plot <- ggplot(data = Cov_Effects) +
+  geom_pointrange(aes(x = Covariate,
+                      y = mean,
+                     ymin = `95%_HPDL`, #includes 95% highest density intervals
+                     ymax = `95%_HPDU`,
+                     color = Life_Stage,
+                     linetype = Subregion),
+                 position = position_dodge(.35),
+                 size = 0.5,
+                 fatten = 1) +
   scale_color_brewer(palette = "Dark2") +
   geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
   labs(#title = "Covariate Effects on Log Density of BKT",
-       color = "Age Class",
+       color = "Life Stage",
        x = element_blank(),
        y = element_blank()) +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 11)) +
-  theme_classic()
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"),
+        legend.key.size = unit(2,"line"))
 
-# save plot
-ggsave("BKT_Nmix_EnvCov_PstrEffects.jpg",
-       plot = cov_effects_plot,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
+# # save plot
+# ggsave("BKT_Nmix_EnvCov_PstrEffects.jpg",
+#        plot = cov_effects_plot,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
 
 
 ################
 # Summarize detection probability in table
 # Get string of sources and their locations
-sources2 <- data.frame(Source = sources,
-                      Location = c("GA DNR", "MD DNR", "SNP", "VA DWR", "NCWRC",  "USGS", "TWRA", "GSMNP"))
+sources2 <- data.frame(Source = sources) %>% 
+  left_join(source_agency_crosswalk)
 
 Detect_probs <- data.frame(
-  Location = rep(sources2$Location, times = 2),
-  Age_Class = c(rep("YOY", times = 8),
+  Agency = rep(sources2$Agency, times = 2),
+  Life_Stage = c(rep("YOY", times = 8),
                 rep("Adult", times = 8))) %>% 
   # add in jagsUI model summary values
-  cbind(rbind(v13_YOY_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),],
-              v13_Adult_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),])) %>% 
-  # and 95% highest density intervals
-  cbind(rbind(as.data.frame(MCMCpstr(YOY_BKT_nMix_v13_full, params = "p", func = function(x)hdi(x, 0.95))),
-              as.data.frame(MCMCpstr(Adult_BKT_nMix_v13_full, params = "p", func = function(x)hdi(x, 0.95)))))
+  cbind(rbind(YOY_BKT_nMix_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),1:4],
+              Adult_BKT_nMix_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),1:4]))
 
 # and make a plot to visualize
-Detect_probs_plot <- ggplot(data = Detect_probs) +
-  geom_linerange(aes(x = Location,
-                     ymin = p.lower, #includes 95% highest density intervals
-                     ymax = p.upper,
-                     color = Age_Class),
+Detect_probs.plot <- ggplot(data = Detect_probs) +
+  geom_linerange(aes(x = Agency,
+                     ymin = `95%_HPDL`, #includes 95% highest density intervals
+                     ymax = `95%_HPDU`,
+                     color = Life_Stage),
                  position = position_dodge(.25),
-                 size = 1) +
-  geom_point(aes(x = Location,
+                 size = 0.5) +
+  geom_point(aes(x = Agency,
                  y = mean,
-                 color = Age_Class),
+                 color = Life_Stage),
              position = position_dodge(.25)) +
   scale_color_brewer(palette = "Dark2") +
   labs(#title = "Covariate Effects on Log Density of BKT",
-    color = "Age Class",
+    color = "Life Stage",
     x = element_blank(),
     y = element_blank()) +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 5)) +
-  theme_classic()
+  theme_classic() + 
+  theme(text = element_text(family =  "serif"))
 
 # save plot
-ggsave("BKT_Nmix_SourcePs.jpg",
-       plot = Detect_probs_plot,
-       path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-       width = 500,
-       height = 350,
-       units = "mm",
-       scale = 0.25,
-       dpi = "retina")
+# ggsave("BKT_Nmix_SourcePs.jpg",
+#        plot = Detect_probs_plot,
+#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
+#        width = 500,
+#        height = 350,
+#        units = "mm",
+#        scale = 0.25,
+#        dpi = "retina")
 
 
+########################################################
+# Export plots to the results folder
+
+# Save the directory to which to save results files
+run_dir <- here("results", "v1.0")
+
+plots <- ls()[str_detect(ls(), ".plot")]
+tables <- ls()[str_detect(ls(), ".table")]
+save(file = file.path(run_dir, "plots.RData"), list = plots)
+save(file = file.path(run_dir, "tables.RData"), list = tables)
