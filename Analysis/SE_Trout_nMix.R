@@ -151,7 +151,7 @@ p1_YOY <- YOY_BKT_passCounts_SampleYears %>%
   filter(nYears_data >= 5)
 
 # save a vector of the names of the sources
-sources <- unique(p1_YOY$Source)
+sources <- sort(unique(p1_YOY$Source))
 
 # and change the Source column to numeric 
 p1_YOY <- p1_YOY %>% 
@@ -262,6 +262,8 @@ p3_adult <- Adult_BKT_passCounts_SampleYears %>%
 # Make wide dataframes of spatiotemporal covariates
 # Temperature
 Mean_Max_Summer_Temp_Scaled <- SE_COMID_temp_covars %>% 
+  mutate(Mean_Max_Summer_Temp_Scaled = c(scale(Mean_Max_Summer_Temp))) %>% # center and scale the covariate
+  dplyr::select(-Mean_Max_Summer_Temp) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
          Year %in% (YOY_BKT_passCounts_SampleYears$Year - 1)) %>% # filter for years which we have trout data, minus one year b/c we are using temp from the prior year
   pivot_wider(names_from = Year,
@@ -274,9 +276,11 @@ Mean_Max_Summer_Temp_Scaled <- Mean_Max_Summer_Temp_Scaled %>%
 
 # Winter flow
 Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
+  mutate(Max_0.9Q_WinterFlow_Scaled = c(scale(Max_0.9Q_WinterFlow))) %>% # center and scale the covariate
+  dplyr::select(-Max_0.9Q_WinterFlow) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
          Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
-  dplyr::select(-Max_0.9Q_SpringFlow_Scaled) %>% 
+  dplyr::select(-Max_0.9Q_SpringFlow) %>% 
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_WinterFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
@@ -287,9 +291,11 @@ Max_0.9Q_WinterFlow_Scaled <- Max_0.9Q_WinterFlow_Scaled %>%
 
 # Spring flow
 Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>% 
+  mutate(Max_0.9Q_SpringFlow_Scaled = c(scale(Max_0.9Q_SpringFlow))) %>% # center and scale the covariate
+  dplyr::select(-Max_0.9Q_SpringFlow) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
          Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
-  dplyr::select(-Max_0.9Q_WinterFlow_Scaled) %>% 
+  dplyr::select(-Max_0.9Q_WinterFlow) %>% 
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_SpringFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
@@ -2166,10 +2172,24 @@ sites_map.plot <- ggplot() +
 
 ######################################
 # Create a table of source data
+
+# Get string of sources and their locations
+sources2 <- data.frame(Source = sources) %>% 
+  left_join(source_agency_crosswalk)
+
 sources.table <- p1_YOY %>% 
+  .[,c(1:34, 37)] %>% 
   pivot_longer(cols = 1:34,
-               names_to = Year)
-  group_by(Source)
+               names_to = "Year",
+               values_to = "Count") %>% 
+  group_by(Source, Year) %>% 
+  summarise(Count = sum(Count, na.rm = T)) %>% 
+  ungroup(Year) %>% 
+  summarise(Data_Range = paste(Year[which.min(Count)], "-", Year[which.max(Count)]),
+            NYears_Data = sum(Count > 0)) %>% 
+  cbind(Agency = sources2$Agency) %>% 
+  dplyr::select(-Source) %>% 
+  .[,c("Agency", "Data_Range", "NYears_Data")]
 
 ###################
 ## ICC Values
@@ -2536,15 +2556,16 @@ cov_effects.plot <- ggplot(data = Cov_Effects) +
                       y = mean,
                      ymin = `95%_HPDL`, #includes 95% highest density intervals
                      ymax = `95%_HPDU`,
-                     color = Life_Stage,
+                     #color = Life_Stage,
                      linetype = Subregion),
                  position = position_dodge(.35),
                  size = 0.5,
                  fatten = 1) +
-  scale_color_brewer(palette = "Dark2") +
+  facet_wrap(~ Life_Stage) +
+  # scale_color_brewer(palette = "Dark2") +
   geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
   labs(#title = "Covariate Effects on Log Density of BKT",
-       color = "Life Stage",
+       #color = "Life Stage",
        x = element_blank(),
        y = element_blank()) +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 11)) +
@@ -2565,9 +2586,6 @@ cov_effects.plot <- ggplot(data = Cov_Effects) +
 
 ################
 # Summarize detection probability in table
-# Get string of sources and their locations
-sources2 <- data.frame(Source = sources) %>% 
-  left_join(source_agency_crosswalk)
 
 Detect_probs <- data.frame(
   Agency = rep(sources2$Agency, times = 2),
