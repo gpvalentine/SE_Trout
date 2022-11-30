@@ -103,8 +103,8 @@ BKT_COMID_Dens <- BKT_sample_sums %>%
                    SiteID_Avg_Abund = mean(Abund_Est), # avg abundance at site in year
                    SiteID_Area = Length_m * Width_m) %>% 
   group_by(COMID, Year) %>% 
-  dplyr::summarise(Lat = first(Lat),
-                   Long = first(Long),
+  dplyr::summarise(Lat = mean(Lat),
+                   Long = mean(Long),
                    Avg_Density = sum(SiteID_Avg_Abund)/(sum(SiteID_Area)/1000)) # avg density/1000m^2/COMID
 
 
@@ -279,8 +279,8 @@ YOY_BKT_COMID_Dens <- YOY_BKT_sample_sums %>%
                    Avg_Abund = mean(Abund_Est),
                    Avg_Density = Avg_Abund/((Length_m * Width_m)/1000)) %>%  # avg density/Site
   group_by(COMID, Year) %>% 
-  dplyr::summarise(Lat = first(Lat),
-                   Long = first(Long),
+  dplyr::summarise(Lat = mean(Lat),
+                   Long = mean(Long),
                    Avg_Density = mean(Avg_Density)) # Avg density/COMID
 
 
@@ -444,8 +444,8 @@ Adult_BKT_COMID_Dens <- Adult_BKT_sample_sums %>%
                    Avg_Abund = mean(Abund_Est),
                    Avg_Density = Avg_Abund/((Length_m * Width_m)/1000)) %>%  # avg density/Site
   group_by(COMID, Year) %>% 
-  dplyr::summarise(Lat = first(Lat),
-                   Long = first(Long),
+  dplyr::summarise(Lat = mean(Lat),
+                   Long = mean(Long),
                    Avg_Density = mean(Avg_Density)) # Avg density/COMID
 
 
@@ -740,6 +740,8 @@ plot(corr3)
 #######################################################################
 # Is there any synchrony in summer temperatures or winter flows?
 
+
+## Max Estimated 0.9Q Flow
 # Load flow estimates from Daren Carlisle at USGS
 #flow_data <- as.data.frame(fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/SE BKT Recruitment Paper/R Files/SE BKT Recruitment Project/flow_preds_all.csv"))
 flow_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/SE_COMID_flow_covars.csv")
@@ -797,6 +799,7 @@ Flow.COMID.synch.plot <- ggplot() +
 #        width = 5, height = 3)
 
 
+## Mean Estimated 0.9Q Summer Temp
 # Summer temps
 #load summer temp data (keep in mind this is 1980-2015)
 SummTemp_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/SE_COMID_temp_covars.csv")
@@ -851,12 +854,116 @@ SummTemp_corrgram.plot <- ggplot() +
        y = "Correlation") +
   theme(text = element_text(size=20))
 
+# Measured flow and temperature
+NS204_daily_temps <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_temps_daily.csv")
+NS204_sites <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_sites.csv")
+  
+obs_temp <- SE_temps %>% 
+  left_join(NS204_sites[,c("SiteID", "COMID", "Lat", "Long")]) %>% 
+  dplyr::select(COMID,
+                Lat,
+                Long,
+                Date,
+                WaterTemp_c_MAX,
+                AirTemp_c_MAX) %>% 
+  filter(month(Date) %in% c(6,7,8,9)) %>% # filter for just summer
+  mutate(Year = year(Date),
+         WaterTemp_c_MAX_scaled = scale(WaterTemp_c_MAX), # scale temperatures
+         AirTemp_c_MAX_scaled = scale(AirTemp_c_MAX)) %>% 
+  group_by(COMID,
+           Year) %>% 
+  summarise(Lat = first(Lat),
+            Long = first(Long),
+            Mean_Max_Summer_WaterTemp_Scaled = mean(WaterTemp_c_MAX_scaled, na.rm = T),
+            Mean_Max_Summer_AirTemp_Scaled = mean(AirTemp_c_MAX_scaled, na.rm = T))
+
+# replace NaNs with NAs
+obs_temp$Mean_Max_Summer_WaterTemp_Scaled[is.nan(obs_temp$Mean_Max_Summer_WaterTemp_Scaled)] <- NA
+obs_temp$Mean_Max_Summer_AirTemp_Scaled[is.nan(obs_temp$Mean_Max_Summer_AirTemp_Scaled)] <- NA
+
+# Use dcast to "widen" the data by year
+obs_waterTemp_wide <- dcast(data = obs_temp, 
+                                   formula = COMID + Lat + Long ~ Year,
+                                   value.var = "Mean_Max_Summer_WaterTemp_Scaled")
+
+obs_airTemp_wide <- dcast(data = obs_temp, 
+                            formula = COMID + Lat + Long ~ Year,
+                            value.var = "Mean_Max_Summer_AirTemp_Scaled")
+
+# calculate the average mean max summer temp at each site
+obs_waterTemp_wide$mean_temp <- (rowSums(obs_waterTemp_wide[,4:ncol(obs_waterTemp_wide)], na.rm = T)/apply(!is.na(obs_waterTemp_wide[,4:ncol(obs_waterTemp_wide)]), MARGIN = 1, sum))
+obs_airTemp_wide$mean_temp <- (rowSums(obs_airTemp_wide[,4:ncol(obs_airTemp_wide)], na.rm = T)/apply(!is.na(obs_airTemp_wide[,4:ncol(obs_airTemp_wide)]), MARGIN = 1, sum))
+
+# then replace the NAs with the average mean max summer temp at that COMID
+for (i in 1:nrow(obs_waterTemp_wide)) {
+  obs_waterTemp_wide[i,4:ncol(obs_waterTemp_wide)][is.na(obs_waterTemp_wide[i,4:ncol(obs_waterTemp_wide)])] <- obs_waterTemp_wide[i, "mean_temp"]
+  print(i)
+}
+for (i in 1:nrow(obs_airTemp_wide)) {
+  obs_airTemp_wide[i,4:ncol(obs_airTemp_wide)][is.na(obs_airTemp_wide[i,4:ncol(obs_airTemp_wide)])] <- obs_airTemp_wide[i, "mean_temp"]
+  print(i)
+}
+
+# remove columns with mean max summer temp
+obs_waterTemp_wide <- obs_waterTemp_wide %>% 
+  dplyr::select(-mean_temp)
+obs_airTemp_wide <- obs_airTemp_wide %>% 
+  dplyr::select(-mean_temp)
+
+# Now, calculate spatial synchrony in the time series using the Sncf() function
+SummWaterTempObs.COMID.corr <- Sncf(x = obs_waterTemp_wide$Long,
+                            y = obs_waterTemp_wide$Lat,
+                            z = obs_waterTemp_wide[,4:9],
+                            resamp = 1000, 
+                            latlon = T,
+                            xmax = ((2/3)*max(na.omit(gcdist(obs_waterTemp_wide$Long, obs_waterTemp_wide$Lat)))))
+
+plot(SummWaterTempObs.COMID.corr)
+
+# Now, calculate spatial synchrony in the time series using the Sncf() function
+SummAirTempObs.COMID.corr <- Sncf(x = obs_airTemp_wide$Long,
+                                    y = obs_airTemp_wide$Lat,
+                                    z = obs_airTemp_wide[,4:9],
+                                    resamp = 1000, 
+                                    latlon = T,
+                                    xmax = ((2/3)*max(na.omit(gcdist(obs_airTemp_wide$Long, obs_airTemp_wide$Lat)))))
+
+plot(SummAirTempObs.COMID.corr)
+
+# Prep for ggplot for export
+# water
+# create a dataframe of the predicted values
+SummWaterTempObs.COMID.corr.pred.df <- data.frame(x = matrix(unlist(SummWaterTempObs.COMID.corr$real$predicted$x)),
+                                                y = matrix(unlist(SummWaterTempObs.COMID.corr$real$predicted$y)))
+
+# ...and a dataframe of the y values for the bootstrap prediction
+SummWaterTempObs.COMID.corr.bootValues.df <- as.data.frame(t(SummWaterTempObs.COMID.corr$boot$boot.summary$predicted$y))
+
+# merge x and y values (min and max) for the bootstrap confidence intervals into a dataframe
+SummWaterTempObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(SummWaterTempObs.COMID.corr$boot$boot.summary$predicted$x)),
+                                                ymin = SummWaterTempObs.COMID.corr.bootValues.df$`0.025`,
+                                                ymax = SummWaterTempObs.COMID.corr.bootValues.df$`0.975`)
+# air
+# create a dataframe of the predicted values
+SummAirTempObs.COMID.corr.pred.df <- data.frame(x = matrix(unlist(SummAirTempObs.COMID.corr$real$predicted$x)),
+                                          y = matrix(unlist(SummAirTempObs.COMID.corr$real$predicted$y)))
+
+# ...and a dataframe of the y values for the bootstrap prediction
+SummAirTempObs.COMID.corr.bootValues.df <- as.data.frame(t(SummAirTempObs.COMID.corr$boot$boot.summary$predicted$y))
+
+# merge x and y values (min and max) for the bootstrap confidence intervals into a dataframe
+SummAirTempObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(SummAirTempObs.COMID.corr$boot$boot.summary$predicted$x)),
+                                          ymin = SummAirTempObs.COMID.corr.bootValues.df$`0.025`,
+                                          ymax = SummAirTempObs.COMID.corr.bootValues.df$`0.975`)
 
 ########################################
 # Create correlogams that combine temperature, flow, AND log BKT density
 
-# uses 3 colors from rcolorbrewer's "dark2" pallete
-colors <- c("Mean Max Summer Temp" = "#7570b3", "Max 0.9Q Winter Flow" = "#1b9e77", "BKT Log Density" = "#d95f02")
+# uses 4 colors from rcolorbrewer's "dark2" pallete
+colors1 <- c("Mean Max Observed\n Summer Water Temp" = "#7570b3",
+            "Mean Max Observed\n Summer Air Temp" = "#d95f02",
+            "Max 0.9Q Winter Flow" = "#1b9e77",
+            "BKT Log Density" = "#e7298a")
 
 compound_corrgram.plot <- ggplot() +
   # log BKT density (both age classes)
@@ -876,13 +983,21 @@ compound_corrgram.plot <- ggplot() +
             aes(x = x, y = y)) +
   geom_hline(yintercept = Flow.COMID.corr$real$cbar,
              linetype = "dashed") +
-  # Summer Temp
-  geom_ribbon(data = SummTemp.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Summer Temp"),
+  # Summer Water Temp
+  geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Observed\n Summer Water Temp"),
               alpha = 0.5) +
-  geom_line(data = SummTemp.COMID.corr.pred.df,
+  geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = SummTemp.COMID.corr$real$cbar,
+  geom_hline(yintercept = SummWaterTempObs.COMID.corr.pred.df$real$cbar,
+             linetype = "dashed") +
+  # Summer Air Temp
+  geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Observed\n Summer Air Temp"),
+              alpha = 0.5) +
+  geom_line(data = SummAirTempObs.COMID.corr.pred.df,
+            aes(x = x, y = y)) +
+  geom_hline(yintercept = SummAirTempObs.COMID.corr.pred.df$real$cbar,
              linetype = "dashed") +
   # Formatting
   geom_hline(yintercept = 0) +
@@ -891,14 +1006,19 @@ compound_corrgram.plot <- ggplot() +
   labs(x = "Pairwise Distance (km)",
        y = "Correlation",
        fill = "Legend") +
-  scale_fill_manual(values = colors)
+  scale_fill_manual(values = colors1)
 
+
+colors2 <- c("Mean Max Daily Observed\nSummer Water Temp" = "#7570b3",
+             "Mean Max Daily Observed\nSummer Air Temp" = "#d95f02",
+             "Max 0.9Q Winter Flow" = "#1b9e77",
+             "BKT Log YOY Density" = "#e7298a")
 
 compound_corrgram_YOY.plot <- ggplot() +
   # log YOY density
   geom_ribbon(data = YOY_BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax),
-              fill = "#d95f02", alpha = 0.5) +
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "BKT Log YOY Density"),
+              alpha = 0.5) +
   geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = 0) +
@@ -906,24 +1026,33 @@ compound_corrgram_YOY.plot <- ggplot() +
              linetype = "dashed") +
   # Winter Flow
   geom_ribbon(data = Flow.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax),
-              fill = "#1b9e77", alpha = 0.5) +
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 0.9Q Winter Flow"),
+              alpha = 0.5) +
   geom_line(data = Flow.COMID.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = Flow.COMID.corr$real$cbar,
              linetype = "dashed") +
-  # Summer Temp
-  geom_ribbon(data = SummTemp.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax),
-              fill = "#7570b3", alpha = 0.5) +
-  geom_line(data = SummTemp.COMID.corr.pred.df,
+  # Summer Water Temp
+  geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Water Temp"),
+              alpha = 0.5) +
+  geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = SummTemp.COMID.corr$real$cbar,
+  geom_hline(yintercept = SummWaterTempObs.COMID.corr.pred.df$real$cbar,
+             linetype = "dashed") +
+  # Summer Air Temp
+  geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Air Temp"),
+              alpha = 0.5) +
+  geom_line(data = SummAirTempObs.COMID.corr.pred.df,
+            aes(x = x, y = y)) +
+  geom_hline(yintercept = SummAirTempObs.COMID.corr.pred.df$real$cbar,
              linetype = "dashed") +
   # Formatting
   geom_hline(yintercept = 0) +
   theme_classic() +
   lims(y = c(-0.5, 1)) +
   labs(x = "Pairwise Distance (km)",
-       y = "Correlation") +
-  theme(text = element_text(size=20))
+       y = "Correlation",
+       fill = "Legend") +
+  scale_fill_manual(values = colors2)
