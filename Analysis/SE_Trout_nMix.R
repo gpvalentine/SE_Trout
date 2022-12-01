@@ -46,20 +46,20 @@ BKT_Sites <- SE_Ind_Final %>%
 
 # create a crosswalk file to associate the agency with the source of the data
 source_agency_crosswalk <- data.frame(Source = unique(SE_Site_Final$Source),
-                                      Agency = c("GA DNR",
-                                                 "NPS GSMNP",
-                                                 "ME DFW",
-                                                 "MD DNR",
-                                                 "NCWRC",
-                                                 "NPS Shen",
-                                                 "USGS",
-                                                 "Clemson U",
-                                                 "TWRA",
-                                                 "TWRA",
-                                                 "USFWS",
-                                                 "VT FWD",
-                                                 "VA DWR",
-                                                 "WV DNR"))
+                                      Agency = c("GA Dept. Natural Resources",
+                                                 "Great Smoky Mountain Nat'l Park",
+                                                 "ME Dept. Inland Fisheries & Wildlife",
+                                                 "MD Dept. Natural Resources",
+                                                 "NC Wildlife Resources Commission",
+                                                 "Shenandoah Nat'l Park",
+                                                 "US Geological Survey",
+                                                 "Clemson Univ.",
+                                                 "TN Wildlife Resources Agency",
+                                                 "TN Wildlife Resources Agency",
+                                                 "US Fish & Wildlife Service",
+                                                 "VT Fish & Wildlife Dept.",
+                                                 "VA Dept. Wildlife Resources",
+                                                 "WV Dept. Natural Resources"))
   
 
 ########################################################
@@ -606,6 +606,26 @@ model{
   for (i in 1:nReps) {
     ICC.adult[i] <- s2.eps/(s2.eps + s2.gam[i])
   }
+  
+    
+  ### Posterior Predictive Check ###
+  # Predict new data
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+      # Pass 1
+      p1_adult_PPC[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+    }
+  }
+  
+  # Get means, CVs of data and predicted data
+  mean_p1_adult <- mean(p1_adult[,1:nYears])
+  CV_p1_adult <- sd(p1_adult[,1:nYears])/mean(p1_adult[,1:nYears])
+  mean_p1_adult_PPC <- mean(p1_adult_PPC[,1:nYears])
+  CV_p1_adult_PPC <- sd(p1_adult_PPC[,1:nYears])/mean(p1_adult_PPC[,1:nYears])
+  
+  # Calculate p values
+  pval.mean_p1 <- step(mean_p1_adult_PPC - mean_p1_adult)
+  pval.CV_p1 <- step(CV_p1_adult_PPC - CV_p1_adult)
 }
 ", fill = TRUE)
 sink()
@@ -624,7 +644,8 @@ jags_data <- list(nReps = nReps,
                   Sources = p1_YOY$Source)
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult")
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", 
+                 "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.Adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -2191,6 +2212,80 @@ sources.table <- p1_YOY %>%
   dplyr::select(-Source) %>% 
   .[,c("Agency", "Data_Range", "NYears_Data")]
 
+#####################################
+# Create a table of covariate and segment summaries
+
+# Get NHDPlus data for the segments considered for the analysis
+SE_segments_NHDPlus <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/GIS Data/NHDplus/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07/NHDPlusv2.1_National_FlowlineData.csv")
+SE_segments_NHDPlus <- SE_segments_NHDPlus %>%
+  filter(COMID %in% COMID_data$COMID) %>% 
+  dplyr::select(SLOPE,
+                LENGTHKM,
+                AreaSqKM,
+                MINELEVSMO,
+                MAXELEVSMO,
+                AreaSqKM,
+                StreamOrde)
+
+# Get widths of sites within the segments considered for the analysis
+SE_segments <- SE_Site_Final %>% 
+  filter(COMID %in% COMID_data$COMID) %>% 
+  select(Width_m,
+         Elev_m)
+
+Segment_Summary.table <- data.frame(Variable = c("Mean 90th percentile summer temperature (C)",
+                                                 "Maximum 90th percentile winter streamflow (ft^3/s)",
+                                                 "Maximum 90th percentile spring streamflow (ft^3/s)",
+                                                 "Channel Slope (%)",
+                                                 "Length (km)",
+                                                 "Catchment area (km^2)",
+                                                 "Elevation (m)",
+                                                 "Stream order",
+                                                 "Wetted width (m)"),
+                                    Mean = c(mean(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
+                                             mean(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
+                                             mean(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
+                                             mean(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
+                                             mean(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
+                                             mean(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
+                                             mean(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                             mean(SE_segments_NHDPlus$StreamOrde, na.rm = T),
+                                             mean(SE_segments$Width_m, na.rm = T)),
+                                    Median = c(median(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
+                                               median(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
+                                               median(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
+                                               median(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
+                                               median(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
+                                               median(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
+                                               median(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                               median(SE_segments_NHDPlus$StreamOrde, na.rm = T),
+                                               median(SE_segments$Width_m, na.rm = T)),
+                                    Maximum = c(max(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
+                                                max(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
+                                                max(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
+                                                max(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
+                                                max(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
+                                                max(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
+                                                max(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                                max(SE_segments_NHDPlus$StreamOrde, na.rm = T),
+                                                max(SE_segments$Width_m, na.rm = T)),
+                                    Minimum = c(min(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
+                                                min(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
+                                                min(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
+                                                min(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
+                                                min(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
+                                                min(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
+                                                min(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                                min(SE_segments_NHDPlus$StreamOrde, na.rm = T),
+                                                min(SE_segments$Width_m, na.rm = T)))
+
+###################
+# PPC p-values
+PPC_pvals.table <- YOY_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
+  dplyr::select(mean)
+
 ###################
 ## ICC Values
 # Join site data to ICC values
@@ -2612,9 +2707,10 @@ Detect_probs.plot <- ggplot(data = Detect_probs) +
     color = "Life Stage",
     x = element_blank(),
     y = element_blank()) +
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 5)) +
+  #scale_x_discrete(labels = function(x) str_wrap(x, width = 5)) +
   theme_classic() + 
-  theme(text = element_text(family =  "serif"))
+  theme(text = element_text(family =  "serif"),
+        axis.text.x = element_text(angle = -45, hjust=0))
 
 # save plot
 # ggsave("BKT_Nmix_SourcePs.jpg",
