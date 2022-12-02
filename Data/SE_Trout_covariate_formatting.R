@@ -149,7 +149,8 @@ winter_flow <- SE_flow_data %>%
          Year <= 2015) %>% 
   group_by(COMID,
            Year2) %>% 
-  summarise(Max_0.9Q_WinterFlow = max(P90_Q))
+  summarise(Max_0.9Q_WinterFlow = max(P90_Q),
+            Mean_EstQ_WinterFlow = mean(Estimated.Q))
 
 # Join flow covariates
 SE_COMID_flow_covars <- spring_flow %>% 
