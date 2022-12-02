@@ -246,6 +246,7 @@ summary(BKT_COMID_logDens.corr_S)
 YOY_BKT_sample_sums <- SE_Ind_Final %>% 
   filter(SPP == "BKT",
          SiteID %in% south_sites$SiteID,
+         SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
          TL_mm <= 90, # filter here for YOY
          year(Date) %in% c(1995:2015)) %>% # Filter to time frame of interest
   group_by(SampleID,
@@ -411,8 +412,10 @@ summary(YOY_BKT_COMID_logDens.corr_S)
 # this will be passed into the removal() function
 Adult_BKT_sample_sums <- SE_Ind_Final %>% 
   filter(SPP == "BKT",
+         SiteID %in% south_sites$SiteID,
+         SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
          TL_mm > 90, # filter here for Adult
-         year(Date) %in% c(1980:2015)) %>% # Filter to time frame of interest
+         year(Date) %in% c(1995:2015)) %>% # Filter to time frame of interest
   group_by(SampleID,
            PassNo) %>% 
   summarise(SiteID = first(SiteID),
@@ -854,7 +857,114 @@ SummTemp_corrgram.plot <- ggplot() +
        y = "Correlation") +
   theme(text = element_text(size=20))
 
-# Measured flow and temperature
+## Measured precipitation ##
+# hourly measured precip from 1/1/2008 to 12/31/2013 for roughly the same geographic extent as the trout sites
+# downloaded 11/30/22 from https://www.ncei.noaa.gov/maps/hourly/?layers=001
+# data info available in "Data" folder in "PRECIP_HLY_documentation.pdf"
+
+# import file of observed precip (100ths of a mm)
+SE_precip_hourly <- fread(here("Data", "SE_precip.csv"))
+
+# set missing data to NA and filter out low elevation sites (avg trout site elevation is ~630m)
+# then summarise to get monthly 90th percentiles
+SE_precip_monthly <- SE_precip_hourly %>% 
+  na_if(25399.75) %>% # remove the NA value
+  group_by(STATION) %>% 
+  mutate(Date = ymd_hm(DATE),
+         ELEVATION = as.numeric(ELEVATION),
+         LATITUDE = as.numeric(LATITUDE),
+         LONGITUDE = as.numeric(LONGITUDE),
+         Precip_scaled = scale(HPCP)) %>% 
+  filter(#ELEVATION > 400,
+         !is.na(ELEVATION)) %>% 
+  group_by(Month = month(Date),
+           Year = year(Date),
+           STATION) %>% 
+  summarise(Lat = first(LATITUDE),
+            Long = first(LONGITUDE),
+            monthly_90p = quantile(Precip_scaled, probs = 0.9, na.rm = T))
+
+
+
+
+# summarise to get max 90th percentile precip for each winter
+# reuse code from "SE_Trout_covariate_formatting.R" to make a second year column to use in summarizing winter flow
+SE_precip_winter <- SE_precip_monthly %>% 
+  mutate(Year2 = ifelse(Month == 12, NA, Year)) %>%
+  arrange(Year, Month) %>% 
+  group_by(STATION) %>% 
+  tidyr::fill(Year2, .direction = "up") %>% 
+  mutate(Year2 = ifelse(Year == 2013 & Month == 12, NA, Year2)) %>% 
+  filter(!is.na(Year2),
+         !is.na(monthly_90p),
+         Month %in% c(12,1,2)) %>% 
+  group_by(STATION,
+           Year2) %>% 
+  summarise(Max_90p_Obs_winter_precip = max(monthly_90p),
+            Lat = first(Lat),
+            Long = first(Long))
+
+# Use dcast to "widen" the data by year
+SE_precip_winter_wide <- dcast(data = SE_precip_winter, 
+                            formula = STATION + Lat + Long ~ Year2,
+                            value.var = "Max_90p_Obs_winter_precip")
+
+# plot sites
+ggplot() +
+  geom_polygon(data = states_map, aes(x = long, y = lat, group = group), color = "black", fill = "white") +
+  geom_point(data = SE_precip_winter_wide, aes(x = Long, y = Lat)) +
+  theme_classic() +
+  labs(x = "Longitude", y = "Latitude") + 
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-84.4, -72),
+            ylim = c(34.5,45)) +
+  theme(text = element_text(size=20))
+
+# Make a new column with a count of the number of years of nonzero data, and filter out sites that have fewer than five years' of data during this time period
+SE_precip_winter_wide <- SE_precip_winter_wide %>%  
+  mutate(nYears_data = rowSums(.[,4:ncol(.)] != 0, na.rm = T)) %>% 
+  filter(nYears_data >= 3) %>% 
+  dplyr::select(-nYears_data) # remove the column because we don't need it anymore
+
+# calculate the average max 90th percentile precip at each site
+SE_precip_winter_wide$mean_precip <- (rowSums(SE_precip_winter_wide[,4:ncol(SE_precip_winter_wide)], na.rm = T)/apply(!is.na(SE_precip_winter_wide[,4:ncol(SE_precip_winter_wide)]), MARGIN = 1, sum))
+
+# then replace the NAs with the average max 90th percentile precip at that site
+for (i in 1:nrow(SE_precip_winter_wide)) {
+  SE_precip_winter_wide[i,4:ncol(SE_precip_winter_wide)][is.na(SE_precip_winter_wide[i,4:ncol(SE_precip_winter_wide)])] <- SE_precip_winter_wide[i, "mean_precip"]
+  print(i)
+}
+
+# remove column with  average max 90th percentile precip
+SE_precip_winter_wide <- SE_precip_winter_wide %>% 
+  dplyr::select(-mean_precip)
+
+# Now, calculate spatial synchrony in the time series using the Sncf() function
+WinterPrecipObs.COMID.corr <- Sncf(x = SE_precip_winter_wide$Long,
+                                    y = SE_precip_winter_wide$Lat,
+                                    z = SE_precip_winter_wide[,4:9],
+                                    resamp = 1000, 
+                                    latlon = T,
+                                    xmax = ((2/3)*max(na.omit(gcdist(SE_precip_winter_wide$Long, SE_precip_winter_wide$Lat)))))
+
+plot(WinterPrecipObs.COMID.corr)
+
+# Prep for ggplot for export
+# create a dataframe of the predicted values
+WinterPrecipObs.COMID.corr.pred.df <- data.frame(x = matrix(unlist(WinterPrecipObs.COMID.corr$real$predicted$x)),
+                                                  y = matrix(unlist(WinterPrecipObs.COMID.corr$real$predicted$y)))
+
+# ...and a dataframe of the y values for the bootstrap prediction
+WinterPrecipObs.COMID.corr.bootValues.df <- as.data.frame(t(WinterPrecipObs.COMID.corr$boot$boot.summary$predicted$y))
+
+# merge x and y values (min and max) for the bootstrap confidence intervals into a dataframe
+WinterPrecipObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(WinterPrecipObs.COMID.corr$boot$boot.summary$predicted$x)),
+                                                  ymin = WinterPrecipObs.COMID.corr.bootValues.df$`0.025`,
+                                                  ymax = WinterPrecipObs.COMID.corr.bootValues.df$`0.975`)
+
+
+## Measured temperature ##
 NS204_daily_temps <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_temps_daily.csv")
 NS204_sites <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_sites.csv")
   
@@ -960,45 +1070,52 @@ SummAirTempObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(SummAirTempObs
 # Create correlogams that combine temperature, flow, AND log BKT density
 
 # uses 4 colors from rcolorbrewer's "dark2" pallete
-colors1 <- c("Mean Max Observed\n Summer Water Temp" = "#7570b3",
-            "Mean Max Observed\n Summer Air Temp" = "#d95f02",
-            "Max 0.9Q Winter Flow" = "#1b9e77",
+colors1 <- c("Max 90th Percentile\nEstimated Monthly Winter Flow" = "#1b9e77",
+             "Mean Max Daily Observed\nSummer Air Temp" = "#d95f02",
+            "Mean Max Daily Observed\nSummer Water Temp" = "#7570b3",
             "BKT Log Density" = "#e7298a")
 
-compound_corrgram.plot <- ggplot() +
+compound_corrgram1.plot <- ggplot() +
   # log BKT density (both age classes)
   geom_ribbon(data = BKT.COMID.logDens.corr.boot.df,
               aes(x = x, ymin = ymin, ymax = ymax, fill = "BKT Log Density"),
               alpha = 0.5) +
   geom_line(data = BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = 0) +
   geom_hline(yintercept = BKT.COMID.logDens.corr$real$cbar,
-             linetype = "dashed") +
+             linetype = "dashed",
+             color = "#e7298a",
+             alpha = 0.5) +
   # Winter Flow
   geom_ribbon(data = Flow.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 0.9Q Winter Flow"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 90th Percentile\nEstimated Monthly Winter Flow"),
               alpha = 0.5) +
   geom_line(data = Flow.COMID.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = Flow.COMID.corr$real$cbar,
-             linetype = "dashed") +
+             linetype = "dashed",
+             color = "#1b9e77",
+             alpha = 0.5) +
   # Summer Water Temp
   geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Observed\n Summer Water Temp"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Water Temp"),
               alpha = 0.5) +
   geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = SummWaterTempObs.COMID.corr.pred.df$real$cbar,
-             linetype = "dashed") +
+  geom_hline(yintercept = SummWaterTempObs.COMID.corr$real$cbar,
+             linetype = "dashed",
+             color = "#7570b3",
+             alpha = 0.5) +
   # Summer Air Temp
   geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Observed\n Summer Air Temp"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Air Temp"),
               alpha = 0.5) +
   geom_line(data = SummAirTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = SummAirTempObs.COMID.corr.pred.df$real$cbar,
-             linetype = "dashed") +
+  geom_hline(yintercept = SummAirTempObs.COMID.corr$real$cbar,
+             linetype = "dashed",
+             color = "#d95f02",
+             alpha = 0.5) +
   # Formatting
   geom_hline(yintercept = 0) +
   theme_classic() +
@@ -1009,45 +1126,74 @@ compound_corrgram.plot <- ggplot() +
   scale_fill_manual(values = colors1)
 
 
-colors2 <- c("Mean Max Daily Observed\nSummer Water Temp" = "#7570b3",
+colors2 <- c("Max 90th Percentile\nEstimated Monthly Winter Flow" = "#1b9e77",
              "Mean Max Daily Observed\nSummer Air Temp" = "#d95f02",
-             "Max 0.9Q Winter Flow" = "#1b9e77",
-             "BKT Log YOY Density" = "#e7298a")
+             "Mean Max Daily Observed\nSummer Water Temp" = "#e6ab02",
+             "Max 90th Percentile\nObserved Monthly Winter Precip" = "#7570b3",
+             "Log YOY BKT Density" = "#e7298a",
+             "Log Adult BKT Density" = "#66a61e")
 
-compound_corrgram_YOY.plot <- ggplot() +
-  # log YOY density
-  geom_ribbon(data = YOY_BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "BKT Log YOY Density"),
-              alpha = 0.5) +
-  geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
-            aes(x = x, y = y)) +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = YOY_BKT.COMID.logDens.corr$real$cbar,
-             linetype = "dashed") +
+compound_corrgram2.plot <- ggplot() +
   # Winter Flow
   geom_ribbon(data = Flow.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 0.9Q Winter Flow"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 90th Percentile\nEstimated Monthly Winter Flow"),
               alpha = 0.5) +
   geom_line(data = Flow.COMID.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = Flow.COMID.corr$real$cbar,
-             linetype = "dashed") +
+             linetype = "dashed",
+             color = "#1b9e77",
+             alpha = 0.5) +
+  # Winter precip
+  geom_ribbon(data = WinterPrecipObs.COMID.corr.boot.df,
+            aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 90th Percentile\nObserved Monthly Winter Precip"),
+            alpha = 0.5) +
+  geom_line(data = WinterPrecipObs.COMID.corr.pred.df,
+            aes(x = x, y = y)) +
+  geom_hline(yintercept = WinterPrecipObs.COMID.corr$real$cbar,
+             linetype = "dashed",
+             color = "#7570b3",
+             alpha = 0.5) +
   # Summer Water Temp
   geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
               aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Water Temp"),
               alpha = 0.5) +
   geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = SummWaterTempObs.COMID.corr.pred.df$real$cbar,
-             linetype = "dashed") +
+  geom_hline(yintercept = SummWaterTempObs.COMID.corr$real$cbar,
+             linetype = "dashed",
+             color = "#e6ab02",
+             alpha = 0.5) +
   # Summer Air Temp
   geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
               aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Air Temp"),
               alpha = 0.5) +
   geom_line(data = SummAirTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = SummAirTempObs.COMID.corr.pred.df$real$cbar,
-             linetype = "dashed") +
+  geom_hline(yintercept = SummAirTempObs.COMID.corr$real$cbar,
+             linetype = "dashed",
+             color = "#d95f02",
+             alpha = 0.5) +
+  # log YOY density
+  geom_ribbon(data = YOY_BKT.COMID.logDens.corr.boot.df,
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Log YOY BKT Density"),
+              alpha = 0.5) +
+  geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
+            aes(x = x, y = y)) +
+  geom_hline(yintercept = YOY_BKT.COMID.logDens.corr$real$cbar,
+             linetype = "dashed",
+             color = "#e7298a",
+             alpha = 0.5) +
+  # log adult density
+  geom_ribbon(data = Adult_BKT.COMID.logDens.corr.boot.df,
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Log Adult BKT Density"),
+              alpha = 0.5) +
+  geom_line(data = Adult_BKT.COMID.logDens.corr.pred.df,
+            aes(x = x, y = y)) +
+  geom_hline(yintercept = Adult_BKT.COMID.logDens.corr$real$cbar,
+             linetype = "dashed",
+             color = "#66a61e",
+             alpha = 0.5) +
   # Formatting
   geom_hline(yintercept = 0) +
   theme_classic() +
