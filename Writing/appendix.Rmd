@@ -75,4 +75,31 @@ SimStudy_compound_plot <- plot_grid(plot0, plot25, plot50, plot75,
 SimStudy_compound_plot
 ```
 
-Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 47% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.
+Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 47% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.  
+
+\newpage
+
+```{r compound-corrgram-BKT-plot, fig.cap="Spline correlogram of log brook trout density by lide stage and subregion."}
+compound_corrgram_BKT.plot
+```
+
+\newpage
+
+```{r detect-probs, fig.cap = "Capture probability by data source"}
+Detect_probs.plot
+```
+
+\newpage
+
+```{r YOY-ICC-semivariogram-plot, fig.cap="Semivariogram of YOY ICC values. Shading indicates 95% confidence intervals. Dotted lines represent average correlation."}
+YOY_ICCs_semivariogram.plot
+```
+
+\newpage
+
+## Code for N-Mixture Model
+
+```{r nMix_code}
+#knitr::read_chunk(here("Analysis", "SE_Trout_nMix.R"))
+```
+

@@ -20,13 +20,14 @@ output: pdf_document
 * Since average high summer temperature was that of the previous year, how could it effect YOY abundance in year $t$? Those fish weren’t born yet when the temperatures happened. We think that these effects may result from nonlethal temperature effects on the parents of the YOY. 
 
 ### Synchrony (ICCs)
-
+SPatial synchrony was slightly higher in northern brook trout populations.
 
 ### Covariate Effects on Synchrony (C- Values)
 * Flows had the strongest synchronizing effects on YOY Brook Trout. Maximum winter flow had the largest contribution to synchrony of YOY, followed by maximum spring flow. Mean high summer temperature did not significantly contribute to synchrony of YOY. Since none of the three environmental covariates considered had significant effects on adult abundance, none contributed significantly to adult synchrony.
 
 
 ## Ecological Interpretations
+Four of the five most synchronous populations (as measured by site-specific ICC values for YOY) were located in the southwest corner of North Carolina (Fig.\@ref(fig:YOY-ICC-map)). 
 * Asynchronous populations have important 
 * Climate refugia are of growing importance in ecological studies. Climate refugia are typically identified by abiotic characteristics [@ashcroft2010]. In the context of fisheries and aquatics, these characteristics are typically cool and stable water temperatures and buffered flows [@cartwright2018; @isaak2015]. By measuring synchrony and asynchrony, we can identify locations and populations that are potentially resilient to environmental stressors. This allows us to identify refugia using empirical biotic evidence. 
  + A commonly identified weakness with traditional approaches to identifying refugia is that verification of refugia is seldom carried out [@barrows2020]. Our approach allows for the process of identifying refugia to be integrated with the process of validating them with empirical data.

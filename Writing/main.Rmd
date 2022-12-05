@@ -32,6 +32,7 @@ library(ncf)          # For creating correlograms in missing data simulation (Ap
 library(cowplot)      # For creating gridded plots
 library(gridGraphics) # For including base R plots in gridded plots
 library(formatR)      # For displaying tidy code in output
+library(knitr)        # For making tidy tables
 
 # Save the directory from which to pull results files
 run_dir <- here::here("results", params$run_name)

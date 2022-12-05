@@ -420,6 +420,7 @@ model{
   for (i in 1:nReps) {
     ICC.YOY[i] <- s2.eps/(s2.eps + s2.gam[i])
   }
+  mean_ICC.YOY <- mean(ICC.YOY)
   
   ### Posterior Predictive Check ###
   # Predict new data
@@ -458,7 +459,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", 
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", 
                  "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
@@ -500,7 +501,6 @@ YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                 parallel = T,
                                 inits = init_vals)
 
-#YOY_BKT_nMix_full_params <- as.data.frame(YOY_BKT_nMix_full$summary)
 YOY_BKT_nMix_full_params <- MCMCsummary(YOY_BKT_nMix_full,
                                         HPD = T)
 
@@ -606,7 +606,7 @@ model{
   for (i in 1:nReps) {
     ICC.adult[i] <- s2.eps/(s2.eps + s2.gam[i])
   }
-  
+  mean_ICC.adult <- mean(ICC.adult)
     
   ### Posterior Predictive Check ###
   # Predict new data
@@ -644,7 +644,7 @@ jags_data <- list(nReps = nReps,
                   Sources = p1_YOY$Source)
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", 
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", 
                  "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.Adult. Initial values must all be great than or equal to the sum of observed counts
@@ -686,7 +686,6 @@ Adult_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-#Adult_BKT_nMix_full_params <- as.data.frame(Adult_BKT_nMix_full$summary)
 Adult_BKT_nMix_full_params <- MCMCsummary(Adult_BKT_nMix_full,
                                         HPD = T)
 
@@ -774,7 +773,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY")
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -836,7 +835,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY")
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -900,7 +899,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult")
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -960,7 +959,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult")
+jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -2281,15 +2280,31 @@ Segment_Summary.table <- data.frame(Variable = c("Mean 90th percentile summer te
 
 ###################
 # PPC p-values
-PPC_pvals.table <- YOY_BKT_nMix_full_params %>% 
+
+YOY_full_PPCs <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
   dplyr::select(mean)
 
+Adult_full_PPCs <- Adult_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
+  dplyr::select(mean)
+
+PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 2),
+                                             rep("Adult", 2)),
+                              pVal = cbind(YOY_full_PPCs,
+                                           Adult_full_PPCs))
+
 ###################
 ## ICC Values
 # Join site data to ICC values
-YOY_ICCs <- YOY_BKT_nMix_full_params %>% 
+YOY_ICCs.table <- YOY_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "ICC")) %>% 
+  cbind(COMID_data[,c(1,3,4)])
+
+Adult_ICCs.table <- Adult_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC")) %>% 
   cbind(COMID_data[,c(1,3,4)])
@@ -2297,27 +2312,22 @@ YOY_ICCs <- YOY_BKT_nMix_full_params %>%
 # Export for Shiny app
 fwrite(YOY_ICCs, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Synchrony_App/YOY_ICCS.csv")
 
-YOY_ICCs_N <- YOY_BKT_nMix_full_N_params %>% 
+YOY_ICCs_N.table <- YOY_BKT_nMix_full_N_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC")) %>% 
   cbind(COMID_data_N[,c(1,3,4)])
 
-YOY_ICCs_S <- YOY_BKT_nMix_full_S_params %>% 
+YOY_ICCs_S.table <- YOY_BKT_nMix_full_S_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC")) %>% 
   cbind(COMID_data_S[,c(1,3,4)])
 
-Adult_ICCs <- Adult_BKT_nMix_full_params %>% 
-  rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data[,c(1,3,4)])
-
-Adult_ICCs_N <- Adult_BKT_nMix_full_N_params %>% 
+Adult_ICCs_N.table <- Adult_BKT_nMix_full_N_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC")) %>% 
   cbind(COMID_data_N[,c(1,3,4)])
 
-Adult_ICCs_S <- Adult_BKT_nMix_full_S_params %>% 
+Adult_ICCs_S.table <- Adult_BKT_nMix_full_S_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC")) %>% 
   cbind(COMID_data_S[,c(1,3,4)])
@@ -2328,11 +2338,11 @@ YOY_highestICCs_map.plot <- ggplot() +
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
   geom_point(data = head(arrange(YOY_ICCs_N, desc(mean))), 
-             aes(x = Long, y = Lat), shape = 5) +
+             aes(x = Long, y = Lat), shape = 5) + # diamonds
   geom_point(data = head(arrange(YOY_ICCs_S, desc(mean))), 
-              aes(x = Long, y = Lat), shape = 1) +
+              aes(x = Long, y = Lat), shape = 1) + # circles
   geom_point(data = head(arrange(YOY_ICCs, desc(mean))), 
-              aes(x = Long, y = Lat), shape = 3) +
+              aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -2486,7 +2496,7 @@ v13_YOY_partialWintFlow_params %>%
 # Calculate C values for all environmental covariates using posterior means from full and null models
 
 # Global C: posterior mean values
-Global_Cs <- data.frame(Covariate = c(rep("All", 2),
+Global_Cs.table <- data.frame(Covariate = c(rep("All", 2),
                                       rep("Summtemp", 2),
                                       rep("WintFlow", 2),
                                       rep("SprFlow", 2)),
@@ -2505,7 +2515,7 @@ Global_Cs <- data.frame(Covariate = c(rep("All", 2),
 # Site-specific Cs
 # create an empty array to store the values
 # we use an array here because this essentially adds a third dimension (unique site) to the for() loop above
-C_Vals_Site <- data.frame(C_YOY_allCovs = numeric(),
+Local_Cs.table <- data.frame(C_YOY_allCovs = numeric(),
                           C_Adult_allCovs = numeric(),
                           C_YOY_partialSummTemp = numeric(),
                           C_Adult_partialSummTemp = numeric(),
@@ -2518,29 +2528,48 @@ C_Vals_Site <- data.frame(C_YOY_allCovs = numeric(),
 for (i in 1:nReps){
   print(i)
   # Calculate C.gams for the given site
-  C_Vals_Site[i, "C_YOY_allCovs"] <- 1 - (YOY_BKT_nMix_full_params[648 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_Adult_allCovs"] <- 1 - (Adult_BKT_nMix_full_params[648 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_YOY_partialSummTemp"] <- 1 - (YOY_BKT_nMix_partialSummTemp_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_Adult_partialSummTemp"] <- 1 - (Adult_BKT_nMix_partialSummTemp_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_YOY_partialWintFlow"] <- 1 - (YOY_BKT_nMix_partialWintFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_Adult_partialWintFlow"] <- 1 - (Adult_BKT_nMix_partialWintFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_YOY_partialSprFlow"] <- 1 - (YOY_BKT_nMix_partialSprFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  C_Vals_Site[i, "C_Adult_partialSprFlow"] <- 1 - (Adult_BKT_nMix_partialSprFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_YOY_allCovs"] <- 1 - (YOY_BKT_nMix_full_params[648 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_Adult_allCovs"] <- 1 - (Adult_BKT_nMix_full_params[648 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_YOY_partialSummTemp"] <- 1 - (YOY_BKT_nMix_partialSummTemp_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_Adult_partialSummTemp"] <- 1 - (Adult_BKT_nMix_partialSummTemp_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_YOY_partialWintFlow"] <- 1 - (YOY_BKT_nMix_partialWintFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_Adult_partialWintFlow"] <- 1 - (Adult_BKT_nMix_partialWintFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_YOY_partialSprFlow"] <- 1 - (YOY_BKT_nMix_partialSprFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
+  Local_Cs.table[i, "C_Adult_partialSprFlow"] <- 1 - (Adult_BKT_nMix_partialSprFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
 }
 
 # bind COMIDs to C.gam values
-C_Vals_Site <- data.frame(COMID = COMID_data$COMID,
+Local_Cs.table <- data.frame(COMID = COMID_data$COMID,
                      Lat = COMID_data$Lat,
                      Long = COMID_data$Long) %>% 
-  cbind(C_Vals_Site)
+  cbind(Local_Cs.table)
 
 # Create maps to show posterior means of site-specific C values 
+# all covariates
+C_Val_YOY_allCovs_map <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = Local_Cs.table, 
+             aes(x = Long, y = Lat, color = C_YOY_allCovs), 
+             alpha = 0.5) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
+  labs(x = "Long",
+       y = "Lat",
+       title = "All Climate Covariates",
+       color = "C Value") +
+  scale_color_viridis_c(limits = c(0,0.8)) +
+  theme_classic()
+
 # summer temp
 C_Val_YOY_SummTemp_map <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = C_Vals_Site, 
+  geom_point(data = Local_Cs.table, 
              aes(x = Long, y = Lat, color = C_YOY_partialSummTemp), 
              alpha = 0.5) +
   coord_map("bonne",
@@ -2559,7 +2588,7 @@ C_Val_YOY_WintFlow_map <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = C_Vals_Site, 
+  geom_point(data = Local_Cs.table, 
              aes(x = Long, y = Lat, color = C_YOY_partialWintFlow), 
              alpha = 0.5) +
   coord_map("bonne",
@@ -2578,7 +2607,7 @@ C_Val_YOY_SprFlow_map <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = C_Vals_Site, 
+  geom_point(data = Local_Cs.table, 
              aes(x = Long, y = Lat, color = C_YOY_partialSprFlow), 
              alpha = 0.5) +
   coord_map("bonne",
@@ -2682,7 +2711,7 @@ cov_effects.plot <- ggplot(data = Cov_Effects) +
 ################
 # Summarize detection probability in table
 
-Detect_probs <- data.frame(
+Detect_probs.table <- data.frame(
   Agency = rep(sources2$Agency, times = 2),
   Life_Stage = c(rep("YOY", times = 8),
                 rep("Adult", times = 8))) %>% 
@@ -2691,7 +2720,7 @@ Detect_probs <- data.frame(
               Adult_BKT_nMix_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),1:4]))
 
 # and make a plot to visualize
-Detect_probs.plot <- ggplot(data = Detect_probs) +
+Detect_probs.plot <- ggplot(data = Detect_probs.table) +
   geom_linerange(aes(x = Agency,
                      ymin = `95%_HPDL`, #includes 95% highest density intervals
                      ymax = `95%_HPDU`,

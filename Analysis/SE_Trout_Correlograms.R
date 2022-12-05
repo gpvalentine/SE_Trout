@@ -171,7 +171,7 @@ BKT_COMID_logDens.corr <- Sncf(x=BKT_COMID_logDens_wide$Long,
                                xmax = ((2/3)*max(na.omit(gcdist(BKT_COMID_logDens_wide$Long, BKT_COMID_logDens_wide$Lat)))))
 
 plot(BKT_COMID_logDens.corr)
-summary(BKT_COMID_logDens.corr)
+BKT_corrgram_summary.table <- summary(BKT_COMID_logDens.corr)
 
 # Plot using ggplot for export
 # create a dataframe of the predicted values
@@ -337,7 +337,7 @@ YOY_BKT_COMID_logDens.corr <- Sncf(x=YOY_BKT_COMID_logDens_wide$Long,
                                    xmax = ((2/3)*max(na.omit(gcdist(YOY_BKT_COMID_logDens_wide$Long, YOY_BKT_COMID_logDens_wide$Lat)))))
 
 plot(YOY_BKT_COMID_logDens.corr)
-summary(YOY_BKT_COMID_logDens.corr)
+YOY_corrgram_summary.table <- summary(YOY_BKT_COMID_logDens.corr)
 
 # Plot using ggplot for export
 # create a dataframe of the predicted values
@@ -504,7 +504,7 @@ Adult_BKT_COMID_logDens.corr <- Sncf(x=Adult_BKT_COMID_logDens_wide$Long,
                                      xmax = ((2/3)*max(na.omit(gcdist(Adult_BKT_COMID_logDens_wide$Long, Adult_BKT_COMID_logDens_wide$Lat)))))
 
 plot(Adult_BKT_COMID_logDens.corr)
-summary(Adult_BKT_COMID_logDens.corr)
+Adult_corrgram_summary.table <- summary(Adult_BKT_COMID_logDens.corr)
 
 
 # Plot using ggplot for export
@@ -680,7 +680,7 @@ compound_density_corrgram.data <- data.frame(AgeClass = c(rep("All", 900),
 compound_density_corrgram.data$AgeClass <- factor(compound_density_corrgram.data$AgeClass,
                                                   levels = c("All", "Adult", "YOY"))
 
-compound_density_corrgram.plot <- ggplot(compound_density_corrgram.data) + 
+compound_corrgram_BKT.plot <- ggplot(compound_density_corrgram.data) + 
   # Estimate
   geom_line(aes(x = x,
                 y = y)) +
@@ -747,16 +747,22 @@ plot(corr3)
 ## Max Estimated 0.9Q Flow
 # Load flow estimates from Daren Carlisle at USGS
 #flow_data <- as.data.frame(fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/SE BKT Recruitment Paper/R Files/SE BKT Recruitment Project/flow_preds_all.csv"))
-flow_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/SE_COMID_flow_covars.csv")
+flow_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/SE_Trout/Data/SE_Trout_COMID_flow_covars.csv")
 
 # Filter these predictions for just the ones at our BKT COMID sites and just for the years of interest and just for winter months (december-february)
+# also center and scale the flow
 flow_data2 <- flow_data %>%
-  inner_join(as.data.frame(BKT_COMID_logDens_wide[,1:3]), by = c("COMID" = "COMID"))
+  inner_join(as.data.frame(BKT_COMID_logDens_wide[,1:3]), by = c("COMID" = "COMID")) 
+  # mutate(Max_0.9Q_SpringFlow_Scaled = scale(Max_0.9Q_SpringFlow),
+  #        Max_0.9Q_WinterFlow_Scaled = scale(Max_0.9Q_WinterFlow),
+  #        Mean_EstQ_WinterFlow_Scaled = scale(Mean_EstQ_WinterFlow))
+  
 
 # widen the data to stick it in Sncf
 flow_data2_wide <- dcast(data = flow_data2, 
                          formula = COMID + Lat + Long ~ Year,
-                         value.var = "Max_0.9Q_WinterFlow_Scaled")
+                         #value.var = "Max_0.9Q_WinterFlow_Scaled")
+                         value.var = "Mean_EstQ_WinterFlow")
 
 # Now, calculate spatial synchrony in the time series using the Sncf() function
 Flow.COMID.corr <- Sncf(x = flow_data2_wide$Long,
@@ -767,6 +773,7 @@ Flow.COMID.corr <- Sncf(x = flow_data2_wide$Long,
                         xmax = ((2/3)*max(na.omit(gcdist(flow_data2_wide$Long, flow_data2_wide$Lat)))))
 
 plot(Flow.COMID.corr, cex.lab=1.5, cex.axis=1.5)
+FlowEst_corrgram_summary.table <- summary(Flow.COMID.corr)
 
 
 # Plot using ggplot for export
@@ -827,6 +834,8 @@ SummTemp.COMID.corr <- Sncf(x = SummTemp_data2_wide$Long,
                             xmax = ((2/3)*max(na.omit(gcdist(SummTemp_data2_wide$Long, SummTemp_data2_wide$Lat)))))
 
 plot(SummTemp.COMID.corr, cex.lab=1.5, cex.axis=1.5)
+SummTempEst_corrgram_summary.table <- data.frame(avg_corr = SummTemp.COMID.corr$real$cbar,
+                                             corr_length = SummTemp.COMID.corr$real$x.intercept)
 
 # Plot using ggplot for export
 # create a dataframe of the predicted values
@@ -866,48 +875,43 @@ SummTemp_corrgram.plot <- ggplot() +
 SE_precip_hourly <- fread(here("Data", "SE_precip.csv"))
 
 # set missing data to NA and filter out low elevation sites (avg trout site elevation is ~630m)
-# then summarise to get monthly 90th percentiles
-SE_precip_monthly <- SE_precip_hourly %>% 
+# warning about "NAs introduced by coercion" is okay here because lat,long columns contain the word "unknown", which cannot be converted to numeric
+SE_precip_hourly <- SE_precip_hourly %>% 
   na_if(25399.75) %>% # remove the NA value
-  group_by(STATION) %>% 
+  #group_by(STATION) %>% 
   mutate(Date = ymd_hm(DATE),
-         ELEVATION = as.numeric(ELEVATION),
-         LATITUDE = as.numeric(LATITUDE),
-         LONGITUDE = as.numeric(LONGITUDE),
-         Precip_scaled = scale(HPCP)) %>% 
-  filter(#ELEVATION > 400,
-         !is.na(ELEVATION)) %>% 
-  group_by(Month = month(Date),
-           Year = year(Date),
-           STATION) %>% 
-  summarise(Lat = first(LATITUDE),
-            Long = first(LONGITUDE),
-            monthly_90p = quantile(Precip_scaled, probs = 0.9, na.rm = T))
+         Elev_m = as.numeric(ELEVATION),
+         Lat = as.numeric(LATITUDE),
+         Long = as.numeric(LONGITUDE)) %>% 
+  filter(#Elev_m > 400,
+         !is.na(ELEVATION))
 
 
 
-
-# summarise to get max 90th percentile precip for each winter
+# summarise to get total precip for each winter
 # reuse code from "SE_Trout_covariate_formatting.R" to make a second year column to use in summarizing winter flow
-SE_precip_winter <- SE_precip_monthly %>% 
-  mutate(Year2 = ifelse(Month == 12, NA, Year)) %>%
+SE_precip_winter <- SE_precip_hourly %>% 
+  mutate(Month = month(Date),
+         Year = year(Date),
+         Year2 = ifelse(Month == 12, NA, Year)) %>%
   arrange(Year, Month) %>% 
   group_by(STATION) %>% 
   tidyr::fill(Year2, .direction = "up") %>% 
   mutate(Year2 = ifelse(Year == 2013 & Month == 12, NA, Year2)) %>% 
   filter(!is.na(Year2),
-         !is.na(monthly_90p),
+         !is.na(HPCP),
          Month %in% c(12,1,2)) %>% 
   group_by(STATION,
            Year2) %>% 
-  summarise(Max_90p_Obs_winter_precip = max(monthly_90p),
+  summarise(Total_Winter_Precip = sum(HPCP),
             Lat = first(Lat),
             Long = first(Long))
+  # mutate(Total_Winter_Precip_Scaled = c(scale(Total_Winter_Precip)))
 
 # Use dcast to "widen" the data by year
 SE_precip_winter_wide <- dcast(data = SE_precip_winter, 
                             formula = STATION + Lat + Long ~ Year2,
-                            value.var = "Max_90p_Obs_winter_precip")
+                            value.var = "Total_Winter_Precip")
 
 # plot sites
 ggplot() +
@@ -949,6 +953,8 @@ WinterPrecipObs.COMID.corr <- Sncf(x = SE_precip_winter_wide$Long,
                                     xmax = ((2/3)*max(na.omit(gcdist(SE_precip_winter_wide$Long, SE_precip_winter_wide$Lat)))))
 
 plot(WinterPrecipObs.COMID.corr)
+WinterPrecipObs_corrgram_summary.table <- data.frame(avg_corr = WinterPrecipObs.COMID.corr$real$cbar,
+                                                 corr_length = WinterPrecipObs.COMID.corr$real$x.intercept)
 
 # Prep for ggplot for export
 # create a dataframe of the predicted values
@@ -968,37 +974,48 @@ WinterPrecipObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(WinterPrecipO
 NS204_daily_temps <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_temps_daily.csv")
 NS204_sites <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_sites.csv")
   
-obs_temp <- SE_temps %>% 
+obs_temp <- NS204_daily_temps %>% 
   left_join(NS204_sites[,c("SiteID", "COMID", "Lat", "Long")]) %>% 
   dplyr::select(COMID,
                 Lat,
                 Long,
                 Date,
-                WaterTemp_c_MAX,
-                AirTemp_c_MAX) %>% 
+                WaterTemp_c_MEAN,
+                AirTemp_c_MEAN) %>% 
   filter(month(Date) %in% c(6,7,8,9)) %>% # filter for just summer
-  mutate(Year = year(Date),
-         WaterTemp_c_MAX_scaled = scale(WaterTemp_c_MAX), # scale temperatures
-         AirTemp_c_MAX_scaled = scale(AirTemp_c_MAX)) %>% 
+  mutate(Year = year(Date)) %>% 
   group_by(COMID,
            Year) %>% 
   summarise(Lat = first(Lat),
             Long = first(Long),
-            Mean_Max_Summer_WaterTemp_Scaled = mean(WaterTemp_c_MAX_scaled, na.rm = T),
-            Mean_Max_Summer_AirTemp_Scaled = mean(AirTemp_c_MAX_scaled, na.rm = T))
+            Mean_Summer_WaterTemp = mean(WaterTemp_c_MEAN, na.rm = T),
+            Mean_Summer_AirTemp = mean(AirTemp_c_MEAN, na.rm = T))
+  # mutate(Mean_Summer_WaterTemp_Scaled = c(scale(Mean_Summer_WaterTemp)),
+  #        Mean_Summer_AirTemp_Scaled = c(scale(Mean_Summer_AirTemp)))
 
 # replace NaNs with NAs
-obs_temp$Mean_Max_Summer_WaterTemp_Scaled[is.nan(obs_temp$Mean_Max_Summer_WaterTemp_Scaled)] <- NA
-obs_temp$Mean_Max_Summer_AirTemp_Scaled[is.nan(obs_temp$Mean_Max_Summer_AirTemp_Scaled)] <- NA
+obs_temp$Mean_Summer_WaterTemp[is.nan(obs_temp$Mean_Summer_WaterTemp)] <- NA
+obs_temp$Mean_Summer_AirTemp[is.nan(obs_temp$Mean_Summer_AirTemp)] <- NA
 
 # Use dcast to "widen" the data by year
 obs_waterTemp_wide <- dcast(data = obs_temp, 
                                    formula = COMID + Lat + Long ~ Year,
-                                   value.var = "Mean_Max_Summer_WaterTemp_Scaled")
+                                   value.var = "Mean_Summer_WaterTemp")
 
 obs_airTemp_wide <- dcast(data = obs_temp, 
                             formula = COMID + Lat + Long ~ Year,
-                            value.var = "Mean_Max_Summer_AirTemp_Scaled")
+                            value.var = "Mean_Summer_AirTemp")
+
+# Make a new column with a count of the number of years of nonzero data, and filter out sites that have fewer than five years' of data during this time period
+obs_waterTemp_wide <- obs_waterTemp_wide %>%  
+  mutate(nYears_data = rowSums(.[,4:ncol(.)] != 0, na.rm = T)) %>% 
+  filter(nYears_data >= 3) %>% 
+  dplyr::select(-nYears_data) # remove the column because we don't need it anymore
+
+obs_airTemp_wide <- obs_airTemp_wide %>%  
+  mutate(nYears_data = rowSums(.[,4:ncol(.)] != 0, na.rm = T)) %>% 
+  filter(nYears_data >= 3) %>% 
+  dplyr::select(-nYears_data) # remove the column because we don't need it anymore
 
 # calculate the average mean max summer temp at each site
 obs_waterTemp_wide$mean_temp <- (rowSums(obs_waterTemp_wide[,4:ncol(obs_waterTemp_wide)], na.rm = T)/apply(!is.na(obs_waterTemp_wide[,4:ncol(obs_waterTemp_wide)]), MARGIN = 1, sum))
@@ -1029,6 +1046,7 @@ SummWaterTempObs.COMID.corr <- Sncf(x = obs_waterTemp_wide$Long,
                             xmax = ((2/3)*max(na.omit(gcdist(obs_waterTemp_wide$Long, obs_waterTemp_wide$Lat)))))
 
 plot(SummWaterTempObs.COMID.corr)
+SummWaterTempObs_corrgram_summary.table <- summary(SummWaterTempObs.COMID.corr)
 
 # Now, calculate spatial synchrony in the time series using the Sncf() function
 SummAirTempObs.COMID.corr <- Sncf(x = obs_airTemp_wide$Long,
@@ -1039,6 +1057,7 @@ SummAirTempObs.COMID.corr <- Sncf(x = obs_airTemp_wide$Long,
                                     xmax = ((2/3)*max(na.omit(gcdist(obs_airTemp_wide$Long, obs_airTemp_wide$Lat)))))
 
 plot(SummAirTempObs.COMID.corr)
+SummAirTempObs_corrgram_summary.table <- summary(SummAirTempObs.COMID.corr)
 
 # Prep for ggplot for export
 # water
@@ -1126,17 +1145,17 @@ compound_corrgram1.plot <- ggplot() +
   scale_fill_manual(values = colors1)
 
 
-colors2 <- c("Max 90th Percentile\nEstimated Monthly Winter Flow" = "#1b9e77",
-             "Mean Max Daily Observed\nSummer Air Temp" = "#d95f02",
-             "Mean Max Daily Observed\nSummer Water Temp" = "#e6ab02",
-             "Max 90th Percentile\nObserved Monthly Winter Precip" = "#7570b3",
+colors2 <- c("Mean Estimated Monthly\nWinter Flow" = "#1b9e77",
+             "Mean Daily Observed\nSummer Air Temp" = "#d95f02",
+             "Mean Daily Observed\nSummer Water Temp" = "#e6ab02",
+             "Total Observed Monthly\nWinter Precip" = "#7570b3",
              "Log YOY BKT Density" = "#e7298a",
              "Log Adult BKT Density" = "#66a61e")
 
 compound_corrgram2.plot <- ggplot() +
   # Winter Flow
   geom_ribbon(data = Flow.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 90th Percentile\nEstimated Monthly Winter Flow"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Estimated Monthly\nWinter Flow"),
               alpha = 0.5) +
   geom_line(data = Flow.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1146,7 +1165,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # Winter precip
   geom_ribbon(data = WinterPrecipObs.COMID.corr.boot.df,
-            aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 90th Percentile\nObserved Monthly Winter Precip"),
+            aes(x = x, ymin = ymin, ymax = ymax, fill = "Total Observed Monthly\nWinter Precip"),
             alpha = 0.5) +
   geom_line(data = WinterPrecipObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1156,7 +1175,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # Summer Water Temp
   geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Water Temp"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Daily Observed\nSummer Water Temp"),
               alpha = 0.5) +
   geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1166,7 +1185,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # Summer Air Temp
   geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Air Temp"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Daily Observed\nSummer Air Temp"),
               alpha = 0.5) +
   geom_line(data = SummAirTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1202,3 +1221,15 @@ compound_corrgram2.plot <- ggplot() +
        y = "Correlation",
        fill = "Legend") +
   scale_fill_manual(values = colors2)
+
+
+########################################################
+# Export plots to the results folder
+
+# Save the directory to which to save results files
+run_dir <- here("results", "v1.0")
+
+plots <- ls()[str_detect(ls(), ".plot")]
+tables <- ls()[str_detect(ls(), ".table")]
+save(file = file.path(run_dir, "plots.RData"), list = plots)
+save(file = file.path(run_dir, "tables.RData"), list = tables)

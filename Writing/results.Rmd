@@ -5,35 +5,29 @@ date: "`r Sys.Date()`"
 ---
 
 # Results
-## Spline Correlograms
+## Correlogram Analysis
+The average scale and magnitude of spatial synchrony in both YOY and adult brook trout was relatively low compared with those of a suite of climate variables (Fig. \@ref(fig:compound-corrgram-plot)). Correlation lengths in YOY and adult brook trout were `r round(YOY_corrgram_summary.table$quantiles["0.025", "x"], 3)` and `r round(Adult_corrgram_summary.table$quantiles["0.025", "x"], 3)`, respectively. Summer air and water temperature and winter streamflow and precipitation were significantly synchronous to scales of 450km or more. Average pairwise correlations in YOY and adult brook trout were `r round(YOY_corrgram_summary.table$Regional.synch[1], 3)` and `r round(Adult_corrgram_summary.table$Regional.synch[1], 3)`, respectively, while those of the climate variables ranged from `r round(SummWaterTempObs_corrgram_summary.table$Regional.synch[1], 3)` up to `r round(FlowEst_corrgram_summary.table$Regional.synch[1], 3)`. Initial pairwise correlation was higher in the northern subregion for both life stages, which in turn caused the average correlation in log density in northern populations to be slightly higher than southern ones. However, neither the scale nor magnitude of synchrony differed significantly between subregions (Fig. \@ref(fig:compound-corrgram-BKT-plot)).
 
-
-## Population Model
-* Posterior predictive checks for mean and coefficient of variation of pass 1 YOY produced Bayesian p-values of __ and __, respectively. 
-* Capture probability by source varied from __ to __ for YOY Brook Trout and from __ to __ for adult Brook Trout (Fig. \@ref(fig:detect-probs)).
-
-```{r detect-probs, fig.cap = "Capture probability by data source"}
-Detect_probs.plot
+```{r compound-corrgram-plot, fig.cap="Spline correlogram of pairwise correlation in brook trout log density and selected climate variables for the southeast USA. Shading indicates 95% confidence intervals. Dotted lines represent average correlation. Climate data sources: USGS NHDPlus v2.1, US Forest Service, NOAA."}
+compound_corrgram2.plot
 ```
 
-### Covariate Effects on Abundance (Betas)
-* Covariate effects on Brook Trout abundance varied by subregion and age class (Fig. \@ref(fig:cov-effects)). 
-  + At the regional scale, all three environmental covariates had significant negative effects on log density of YOY, while they had nonsignificant effects on log density of adults. 
-  + Average 90th percentile summer temperature in year t-1 had the strongest negative effect on YOY abundance, followed by maximum 90th percentile winter flow and maximum 90th percentile spring flow. 
-  + Within the northern subregion, winter flow had the only significant effect on log density of YOY, and __. 
-  + Within the southern subregion, summer temperature affected log YOY density more negatively than winter flow and __.
+## N-Mixture Model
+Posterior predictive checks suggest little evidence of lack of fit between model estimates and data. Bayesian p-values for mean and coefficient of variation of pass 1 abundance in the full model for YOY were between `r round(max(PPC_pvals.table$mean), 3)` and `r round(min(PPC_pvals.table$mean), 3)`. Electrofishing capture probability was higher for adults than YOY. Estimates of capture probability by agency varied from `r round(min(Detect_probs.table[Detect_probs.table$Life_Stage == "YOY", "mean"]), 3)` to `r round(max(Detect_probs.table[Detect_probs.table$Life_Stage == "YOY", "mean"]), 3)` for YOY brook trout and from `r round(min(Detect_probs.table[Detect_probs.table$Life_Stage == "Adult", "mean"]), 3)` to `r round(max(Detect_probs.table[Detect_probs.table$Life_Stage == "Adult", "mean"]), 3)` for adult brook trout (Fig. \@ref(fig:detect-probs)).
+
+### Covariate Effects on Log Density
+Covariate effects on brook trout abundance varied by subregion and age class, as represented by posterior distributions of model $\beta$s (Fig. \@ref(fig:cov-effects)). At the regional scale, all three environmental covariates had significant negative effects on log density of YOY, while they had nonsignificant effects on log density of adults. Average 90th percentile summer temperature in the preceding year had the strongest negative effect on YOY abundance, followed by maximum 90th percentile winter flow and maximum 90th percentile spring flow. Covariate effects on log density of YOY at the subregional scale, however, varied. Within the northern subregion, winter flow had the only significant effect on log density of YOY, and the mean effect of summer air temperature was in fact positive. Spring flow had no effect on log density of YOY in this subregion. Within the southern subregion, average 90th percentile summer temperature in the preceding year had a strong negative effect on log YOY density, and the effect of winter flow was also negative. Spring flow had a mild positive effect. There was no spatial structure in covariate effects on brook trout abundance.
   
-```{r cov-effects, fig.cap = "Covariate effects on young-of-year Brook Trout log density."}
+```{r cov-effects, fig.cap = "Covariate effects on brook trout log density by age class and subregion."}
 cov_effects.plot
 ```
 
-### Synchrony (ICCs)
-* A semivariogram of ICC values shows that the degree of synchrony is not related to stream distance between segments.
-* Segment-specific ICC values varied from __ to __ for YOY Brook Trout and from __ to __ for adult Brook Trout. There was considerable geographic heterogeneity (Fig.\@ref(fig:YOY-ICC-map)).
-* Northern Brook Trout populations were more synchronous than southern populations. Average ICC within the northern subregion was __ , while average ICC within the southern subregion was __.
+### Synchrony  
+There was considerable geographic heterogeneity in spatial synchrony (Fig.\@ref(fig:YOY-ICC-map)). Estimates of segment-specific ICC values varied from `r round(min(YOY_ICCs.table$mean), 3)` to `r round(max(YOY_ICCs.table$mean), 3)` for YOY brook trout and from `r round(min(Adult_ICCs.table$mean), 3)` to `r round(max(Adult_ICCs.table$mean), 3)` for adult brook trout. YOY brook trout showed moderately higher average synchrony than adult brook trout (`r round(0, 3)` vs. `r round(0, 3)`). Northern brook trout populations were more synchronous than southern populations (average ICC: `r round(0, 3)` vs. `r round(0, 3)`). The average YOY ICC within the northern subregion was `r round(0, 3)` , while the average YOY ICC within the southern subregion was `r round(0, 3)`. Site-specific synchrony showed no spatial structure (Fig. \@ref(fig:YOY-ICC-semivariogram-plot)).
 
 ```{r YOY-ICC-map, fig.cap = "Capture probability by data source."}
 YOY_ICC_map.plot
 ```
 
-### Covariate Effects on Synchrony (C-Values)
+### Covariate Effects on Synchrony   
+Spatial synchrony in YOY brook trout density can be partially explained by climate variables, as evidenced by calculations of $C_\epsilon$ (Eq. .\@ref(eq:C-eps)). That is, summer temperature and winter and spring flow accounted for `r round(Global_Cs.table[1,3], 3) * 100`% of the synchronous variance in YOY density. Of the three climate covariates, high winter flows explained the highest amount of synchronous variance, at `r round(Global_Cs.table[5,3], 3) * 100`%. The three climate variables did not explain spatial synchrony in adult brook trout density, as all calculations of $C_\epsilon$ for adults were negative. This is because spatial synchrony in adult brook trout density is low to start with.  Climate is acting as a minor synchronizing agent in YOY brook trout populations, however the vast majority of synchronous variation (`r 100 - (round(Global_Cs.table[1,3], 3) * 100)`%) is not explained by these variables. Conversely, climate variables explained even less of the site-specific asynchrony. In YOY, this proportion ranged from 0 to `r round(max(Local_Cs.table$C_YOY_allCovs), 3) * 100`% with a mean of `r round(mean(Local_Cs.table$C_YOY_allCovs), 3) * 100`%. In adults, this proportion ranged from 0 to `r round(max(Local_Cs.table$C_Adult_allCovs), 3) * 100`% with a mean of 0%. Climate therefore appears to have a stronger, albeit weak, synchronizing effect on brook trout populations than it does an asynchronizing effect.  
