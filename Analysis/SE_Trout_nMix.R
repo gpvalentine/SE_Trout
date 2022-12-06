@@ -378,7 +378,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(12, 12)
+      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
     }
   
   ## Process
@@ -564,7 +564,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-    p[j] ~ dbeta(18, 10) # gives mean detection of ~0.65
+    p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
   }
   
   ## Process
@@ -1058,7 +1058,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(12, 12)
+      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
     }
   
   ## Process
@@ -1205,7 +1205,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(18, 10) # gives mean detection of ~0.65
+      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
     }
   
   ## Process
@@ -1358,8 +1358,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(12, 12)
-    }
+      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
   
   ## Process
   for (i in 1:nReps) {
@@ -1507,7 +1506,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(18, 10) # gives mean detection of ~0.65
+      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
     }
   
   ## Process
@@ -1656,7 +1655,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(12, 12)
+      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
     }
   
   ## Process
@@ -1806,7 +1805,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(18, 10) # gives mean detection of ~0.65
+      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
     }
   
   ## Process
@@ -1941,7 +1940,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(12, 12)
+      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
     }
   
   ## Process
@@ -2071,7 +2070,7 @@ model{
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-      p[j] ~ dbeta(18, 10) # gives mean detection of ~0.65
+      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
     }
   
   ## Process
