@@ -27,12 +27,9 @@ SE_COMID_flow_covars <- fread(here("Data", "SE_Trout_COMID_flow_covars.csv"))
 
 
 # Trout data
-# Set working directory for trout data files
-filepath <- "/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Trout/Trout Data Working/Compiled Trout Data (All sources)/"
-
-SE_Ind_Final <- fread(file = paste0(filepath, "/SE_Ind_Final.csv"))
-SE_Sample_Final <- fread(file = paste0(filepath, "/SE_Sample_Final.csv"))
-SE_Site_Final <- fread(file = paste0(filepath, "/SE_Site_Final.csv"))
+SE_Ind_Final <- fread(here("Data", "SE_Ind_Final.csv"))
+SE_Sample_Final <- fread(here("Data", "SE_Sample_Final.csv"))
+SE_Site_Final <- fread(here("Data", "SE_Site_Final.csv"))
 
 # Some sites don't have any BKT. Make a dataframe of just the sites that have >10% BKT. This is Matt Kulp's suggestion rather than using sites with just any BKT
 BKT_Sites <- SE_Ind_Final %>% 
@@ -65,35 +62,23 @@ source_agency_crosswalk <- data.frame(Source = unique(SE_Site_Final$Source),
 ########################################################
 
 # COMID/Site data for model
-COMID_data <- SE_Site_Final %>% 
+sample_areas <- SE_Sample_Final %>% 
+  left_join(SE_Site_Final) %>% 
   filter(SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
          Lat <= 39.716667, # filter for just sites south of the Mason-Dixon Line
          COMID %in% SE_COMID_flow_covars$COMID, # filter for COMIDs for which we have flow data - there are several sites in Maine with no flow
          COMID %in% SE_COMID_temp_covars$COMID) %>% # same goes for temperature - there's one site in Maine with no temp
-  group_by(COMID) %>% 
-  summarise(COMID_Area = sum(Length_m * Width_m), # Calculates the sum of site areas within the stream segment
-            Lat = mean(Lat),
-            Long = mean(Long)) %>% 
-  na.omit() %>%  # remove rows for sites that don't have area, lat, or long measurements
-  mutate(Lat_Scaled = c(scale(Lat)), # use default mean 0, SD 1
-         Long_Scaled = c(scale(Long)))
+  group_by(Year = year(Date),
+           COMID) %>% 
+  summarise(Area_Sampled = sum(Length_m * Width_m)) %>%  # Calculates the sum of site areas within the stream segment that were sampled that year
+  filter(Year >= 1981, # Filter to one year after the earliest year that we have temperature data
+         Year <= 2015)    # Filter to the latest year that we have flow data
   
-# Make a dataframe of the COMIDs and years when sampling happened
-SampleYears <- SE_Sample_Final %>% 
-  filter(SiteID %in% BKT_Sites$SiteID) %>%  # Filter to sites with records of BKT
-  left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
-  mutate(Year = year(Date)) %>% 
-  dplyr::select(COMID, Year, Source) %>% 
-  unique() %>% 
-  filter(COMID %in% COMID_data$COMID, # Filter because we can only use data from COMIDs with area and coordinates
-         !is.na(COMID),
-         Year >= 1981, # Filter to one year after the earliest year that we have temperature data
-         Year <= 2015)  # Filter to the latest year that we have flow data
 
 # What was the percentage of single- vs multipass electrofishing?
 passes_pcts.table <- SE_Sample_Final %>% 
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
-  filter(COMID %in% COMID_data$COMID,  # Filter because we can only use data from COMIDs with area and coordinates
+  filter(COMID %in% sample_areas$COMID,  # Filter because we can only use data from COMIDs with area and coordinates
          !is.na(NumPasses)) %>%
   mutate(Multipass = ifelse(NumPasses > 1, 1, 0)) %>% 
   group_by(Multipass) %>% 
@@ -106,10 +91,8 @@ passes_pcts.table <- SE_Sample_Final %>%
 YOY_BKT_passCounts <- SE_Ind_Final %>% 
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
-  filter(SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
-         COMID %in% COMID_data$COMID, # Filter because we can only use data from COMIDs with all the covariates
-         Year >= 1981, # Filter to one year after the earliest year that we have temperature data
-         Year <= 2015) %>% # Filter to the latest year that we have flow data
+  filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with all the covariates
+         Year %in% sample_areas$Year) %>% # Filter to the latest year that we have flow data
   group_by(COMID,
            Year,
            Source) %>% 
@@ -117,6 +100,20 @@ YOY_BKT_passCounts <- SE_Ind_Final %>%
             P2_Count_YOY_BKT = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 2),
             P3_Count_YOY_BKT = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 3)) %>% 
   .[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
+
+
+      # what's teh proportion of segments that have mutiple sites in them?
+      sites_in_segments <- SE_Ind_Final %>% 
+        left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+        mutate(Year = year(Date)) %>% 
+        filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with all the covariates
+               Year %in% sample_areas$Year) %>% # Filter to the latest year that we have flow data
+        group_by(COMID,
+                 Year) %>% 
+        summarise(nSites = length(unique(SiteID)))
+      
+      summary(sites_in_segments$nSites)
+      sum(sites_in_segments$nSites > 1)/nrow(sites_in_segments)
 
 # Join sample years where YOY BKT were collected to all sample years
   # This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had not fish
@@ -188,12 +185,10 @@ p3_YOY <- YOY_BKT_passCounts_SampleYears %>%
 ## Adults
 # Tally adult counts by pass at each COMID, year combination
 Adult_BKT_passCounts <- SE_Ind_Final %>% 
-  left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+  left_join(SE_Site_Final[,c("SiteID", "COMID")]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
-  filter(SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
-         COMID %in% COMID_data$COMID, # Filter because we can only use data from COMIDs with all the covariates
-         Year >= 1981, # Filter to one year after the earliest year that we have temperature data
-         Year <= 2015) %>% # Filter to the latest year that we have flow data
+  filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with all the covariates
+         Year %in% sample_areas$Year) %>% # Filter to the latest year that we have flow data
   group_by(COMID,
            Year,
            Source) %>% 
@@ -262,8 +257,11 @@ p3_adult <- Adult_BKT_passCounts_SampleYears %>%
 # Make wide dataframes of spatiotemporal covariates
 # Temperature
 Mean_Max_Summer_Temp_Scaled <- SE_COMID_temp_covars %>% 
+  group_by(COMID) %>% 
   mutate(Mean_Max_Summer_Temp_Scaled = c(scale(Mean_Max_Summer_Temp))) %>% # center and scale the covariate
-  dplyr::select(-Mean_Max_Summer_Temp) %>% 
+  dplyr::select(COMID,
+                Year,
+                Mean_Max_Summer_Temp_Scaled) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
          Year %in% (YOY_BKT_passCounts_SampleYears$Year - 1)) %>% # filter for years which we have trout data, minus one year b/c we are using temp from the prior year
   pivot_wider(names_from = Year,
@@ -276,11 +274,13 @@ Mean_Max_Summer_Temp_Scaled <- Mean_Max_Summer_Temp_Scaled %>%
 
 # Winter flow
 Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
+  group_by(COMID) %>% 
   mutate(Max_0.9Q_WinterFlow_Scaled = c(scale(Max_0.9Q_WinterFlow))) %>% # center and scale the covariate
-  dplyr::select(-Max_0.9Q_WinterFlow) %>% 
+  dplyr::select(COMID,
+                Year,
+                Max_0.9Q_WinterFlow_Scaled) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
          Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
-  dplyr::select(-Max_0.9Q_SpringFlow) %>% 
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_WinterFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
@@ -290,12 +290,14 @@ Max_0.9Q_WinterFlow_Scaled <- Max_0.9Q_WinterFlow_Scaled %>%
   right_join(data.frame(COMID = p1_YOY$COMID))
 
 # Spring flow
-Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>% 
+Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
+  group_by(COMID) %>% 
   mutate(Max_0.9Q_SpringFlow_Scaled = c(scale(Max_0.9Q_SpringFlow))) %>% # center and scale the covariate
-  dplyr::select(-Max_0.9Q_SpringFlow) %>% 
+  dplyr::select(COMID,
+                Year,
+                Max_0.9Q_SpringFlow_Scaled) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
          Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
-  dplyr::select(-Max_0.9Q_WinterFlow) %>% 
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_SpringFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
@@ -304,10 +306,26 @@ Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
 Max_0.9Q_SpringFlow_Scaled <- Max_0.9Q_SpringFlow_Scaled %>% 
   right_join(data.frame(COMID = p1_YOY$COMID))
 
-# Filter the COMID data for just those with fish observations in the time frame of interest
+# Filter the sample areas data for just those with fish observations in the time frame of interest
 # use a right join to get duplicates for the COMIDs with multiple sources of data
-COMID_data <- COMID_data %>% 
+# Then pivot wider to include it in the model
+sample_areas_wide <- sample_areas %>% 
+  pivot_wider(names_from = Year, 
+              values_from = Area_Sampled) %>% 
+  arrange(COMID) %>% 
+  relocate(COMID, .after = last_col()) %>%  # move the info columns to the end of the df to allow subsetting by year in the model
   right_join(data.frame(COMID = p1_YOY$COMID))
+
+# the sample areas cannot have missing values, 
+# so we impute any segment-year that is missing a sample area as the average sample area for that segment.
+# calculate the average sample area of each segment
+mean_areas <- (rowSums(sample_areas_wide[,1:ncol(sample_areas_wide)-1], na.rm = T)/apply(!is.na(sample_areas_wide[,1:ncol(sample_areas_wide)-1]), MARGIN = 1, sum))
+
+# then replace the NAs with the average sample area at that segment
+for (i in 1:nrow(sample_areas_wide)) {
+  sample_areas_wide[i,][is.na(sample_areas_wide[i,])] <- mean_areas[i]
+  print(i)
+}
 
 # Set sample sizes
 nReps <- nrow(p1_YOY)
@@ -335,7 +353,7 @@ model{
   for (m in 1:3) {
     
     # mu.beta.cov - mean parameter for beta.covs
-    mu.beta.cov[m] ~ dnorm(0, 0.01)
+    mu.beta.cov[m] ~ dnorm(-0.5, 0.01)
     
     # tau.beta.cov - precision parameter for beta.covs
     # sd parameter for tau.beta.covs
@@ -387,7 +405,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.YOY[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta.cov[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta.cov[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -427,19 +445,19 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
       # Pass 1
-      p1_YOY_PPC[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+      p1_YOY.new[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
     }
   }
   
   # Get means, CVs of data and predicted data
   mean_p1_YOY <- mean(p1_YOY[,1:nYears])
   CV_p1_YOY <- sd(p1_YOY[,1:nYears])/mean(p1_YOY[,1:nYears])
-  mean_p1_YOY_PPC <- mean(p1_YOY_PPC[,1:nYears])
-  CV_p1_YOY_PPC <- sd(p1_YOY_PPC[,1:nYears])/mean(p1_YOY_PPC[,1:nYears])
+  mean_p1_YOY.new <- mean(p1_YOY.new)
+  CV_p1_YOY.new <- sd(p1_YOY.new)/mean(p1_YOY.new)
   
   # Calculate p values
-  pval.mean_p1 <- step(mean_p1_YOY_PPC - mean_p1_YOY)
-  pval.CV_p1 <- step(CV_p1_YOY_PPC - CV_p1_YOY)
+  pval.mean_p1 <- step(mean_p1_YOY.new - mean_p1_YOY)
+  pval.CV_p1 <- step(CV_p1_YOY.new - CV_p1_YOY)
 }
 ", fill = TRUE)
 sink()
@@ -448,7 +466,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
@@ -475,7 +493,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, 0, 0.01),
+                             mu.beta.cov = rnorm(3, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -504,6 +522,8 @@ YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
 YOY_BKT_nMix_full_params <- MCMCsummary(YOY_BKT_nMix_full,
                                         HPD = T)
 
+MCMCtrace(YOY_BKT_nMix_full, params = "mu.beta.cov", pdf = F)
+
 
 ## Adults
 sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags")
@@ -523,7 +543,7 @@ model{
   for (m in 1:3) {
     
     # mu.beta.cov - mean parameter for beta.covs
-    mu.beta.cov[m] ~ dnorm(0, 0.01)
+    mu.beta.cov[m] ~ dnorm(-0.5, 0.01)
     
     # tau.beta.cov - precision parameter for beta.covs
     # sd parameter for tau.beta.covs
@@ -573,7 +593,7 @@ model{
     for (t in 1:nYears) {
       
       # Data
-      N.adult[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta.cov[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta.cov[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -613,19 +633,19 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
       # Pass 1
-      p1_adult_PPC[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+      p1_adult.new[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
     }
   }
   
   # Get means, CVs of data and predicted data
   mean_p1_adult <- mean(p1_adult[,1:nYears])
   CV_p1_adult <- sd(p1_adult[,1:nYears])/mean(p1_adult[,1:nYears])
-  mean_p1_adult_PPC <- mean(p1_adult_PPC[,1:nYears])
-  CV_p1_adult_PPC <- sd(p1_adult_PPC[,1:nYears])/mean(p1_adult_PPC[,1:nYears])
+  mean_p1_adult.new <- mean(p1_adult.new)
+  CV_p1_adult.new <- sd(p1_adult.new)/mean(p1_adult.new)
   
   # Calculate p values
-  pval.mean_p1 <- step(mean_p1_adult_PPC - mean_p1_adult)
-  pval.CV_p1 <- step(CV_p1_adult_PPC - CV_p1_adult)
+  pval.mean_p1 <- step(mean_p1_adult.new - mean_p1_adult)
+  pval.CV_p1 <- step(CV_p1_adult.new - CV_p1_adult)
 }
 ", fill = TRUE)
 sink()
@@ -634,7 +654,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
@@ -660,7 +680,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, 0, 0.01),
+                             mu.beta.cov = rnorm(3, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -729,9 +749,9 @@ p2_adult_S <- p2_adult %>%
 p3_adult_S <- p3_adult %>% 
   filter(COMID %in% S_Sites$COMID)
 
-COMID_data_N <- COMID_data %>% 
+sample_areas_wide_N <- sample_areas_wide %>% 
   filter(COMID %in% N_Sites$COMID)
-COMID_data_S <- COMID_data %>% 
+sample_areas_wide_S <- sample_areas_wide %>% 
   filter(COMID %in% S_Sites$COMID)
 
 Mean_Max_Summer_Temp_Scaled_N <- Mean_Max_Summer_Temp_Scaled %>% 
@@ -762,7 +782,7 @@ nSources_S <- length(unique(p1_YOY_S$Source))
 jags_data <- list(nReps = nReps_N, 
                   nYears = nYears,
                   nSources = nSources_N,
-                  Area = COMID_data_N$COMID_Area,
+                  Area = sample_areas_wide_N,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_N,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_N,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_N,
@@ -788,7 +808,7 @@ for (i in 1:nReps_N) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
                              sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, 0, 0.01),
+                             mu.beta.cov = rnorm(3, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_N, 0, 10),
@@ -814,8 +834,6 @@ YOY_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
                                       parallel = T,
                                       inits = init_vals)
 
-#YOY_BKT_nMix_full_N_params <- as.data.frame(YOY_BKT_nMix_full_N$summary)
-#MCMCtrace(YOY_BKT_nMix_full_N_params, params = c("s2.gam[86]", "alpha[91]"), ISB = F, pdf = F, Rhat = T)
 YOY_BKT_nMix_full_N_params <- MCMCsummary(YOY_BKT_nMix_full_N,
                                           HPD = T)
 
@@ -824,7 +842,7 @@ YOY_BKT_nMix_full_N_params <- MCMCsummary(YOY_BKT_nMix_full_N,
 jags_data <- list(nReps = nReps_S, 
                   nYears = nYears,
                   nSources = nSources_S,
-                  Area = COMID_data_S$COMID_Area,
+                  Area = sample_areas_wide_S,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_S,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_S,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_S,
@@ -850,7 +868,7 @@ for (i in 1:nReps_S) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
                              sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, 0, 0.01),
+                             mu.beta.cov = rnorm(3, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_S, 0, 10),
@@ -876,7 +894,6 @@ YOY_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-#YOY_BKT_NMix_full_S_params <- as.data.frame(YOY_BKT_NMix_full_S$summary)
 YOY_BKT_nMix_full_S_params <- MCMCsummary(YOY_BKT_nMix_full_S,
                                           HPD = T)
 
@@ -888,7 +905,7 @@ YOY_BKT_nMix_full_S_params <- MCMCsummary(YOY_BKT_nMix_full_S,
 jags_data <- list(nReps = nReps_N, 
                   nYears = nYears,
                   nSources = nSources_N,
-                  Area = COMID_data_N$COMID_Area,
+                  Area = sample_areas_wide_N,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_N,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_N,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_N,
@@ -914,7 +931,7 @@ for (i in 1:nReps_N) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
                              sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, 0, 0.01),
+                             mu.beta.cov = rnorm(3, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_N, 0, 10),
@@ -948,7 +965,7 @@ Adult_BKT_nMix_full_N_params <- MCMCsummary(Adult_BKT_nMix_full_N,
 jags_data <- list(nReps = nReps_S, 
                   nYears = nYears,
                   nSources = nSources_S,
-                  Area = COMID_data_S$COMID_Area,
+                  Area = sample_areas_wide_S,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_S,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_S,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_S,
@@ -1019,7 +1036,7 @@ model{
   # Beta for summer temperature (site-specific)
   
   # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(0, 0.01)
+  mu.beta.cov ~ dnorm(-0.5, 0.01)
   
   # tau.beta.cov - precision parameter for beta.covs
   # sd parameter for tau.beta.covs
@@ -1066,7 +1083,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.YOY[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Mean_Max_Summer_Temp_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -1102,7 +1119,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   p1_YOY = p1_YOY,
                   p2_YOY = p2_YOY, 
@@ -1131,7 +1148,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, 0, 0.01),
+                             mu.beta.cov = rnorm(1, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -1168,7 +1185,7 @@ model{
   # Beta for summer temperature (site-specific)
   
   # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(0, 0.01)
+  mu.beta.cov ~ dnorm(-0.5, 0.01)
   
   # tau.beta.cov - precision parameter for beta.covs
   # sd parameter for tau.beta.covs
@@ -1214,7 +1231,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.adult[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Mean_Max_Summer_Temp_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -1250,7 +1267,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   p1_adult = p1_adult,
                   p2_adult = p2_adult, 
@@ -1279,7 +1296,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, 0, 0.01),
+                             mu.beta.cov = rnorm(1, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -1319,7 +1336,7 @@ model{
   # Beta for summer temperature (site-specific)
   
   # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(0, 0.01)
+  mu.beta.cov ~ dnorm(-0.5, 0.01)
   
   # tau.beta.cov - precision parameter for beta.covs
   # sd parameter for tau.beta.covs
@@ -1359,13 +1376,14 @@ model{
   # p.j - detection probability for each source
   for (j in 1:nSources) {
       p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
+  }
   
   ## Process
   for (i in 1:nReps) {
     for (t in 1:nYears) {
     
       # Data
-      N.YOY[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_WinterFlow_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -1401,7 +1419,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   p1_YOY = p1_YOY,
                   p2_YOY = p2_YOY, 
@@ -1431,7 +1449,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, 0, 0.01),
+                             mu.beta.cov = rnorm(1, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -1467,7 +1485,7 @@ model{
   # Beta for summer temperature (site-specific)
   
   # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(0, 0.01)
+  mu.beta.cov ~ dnorm(-0.5, 0.01)
   
   # tau.beta.cov - precision parameter for beta.covs
   # sd parameter for tau.beta.covs
@@ -1514,7 +1532,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.adult[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_WinterFlow_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -1550,7 +1568,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   p1_adult = p1_adult, 
                   p2_adult = p2_adult, 
@@ -1579,7 +1597,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov= runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, 0, 0.01),
+                             mu.beta.cov = rnorm(1, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -1616,7 +1634,7 @@ model{
   # Beta for summer temperature (site-specific)
   
   # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(0, 0.01)
+  mu.beta.cov ~ dnorm(-0.5, 0.01)
   
   # tau.beta.cov - precision parameter for beta.covs
   # sd parameter for tau.beta.covs
@@ -1663,7 +1681,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.YOY[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -1699,7 +1717,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
                   p1_YOY = p1_YOY, 
                   p2_YOY = p2_YOY, 
@@ -1728,8 +1746,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(1, 0, 10),
-                             mu.beta = rnorm(1, -3.5, 0.001),
-                             mu.beta.cov = rnorm(1, 0, 0.01),
+                             mu.beta.cov = rnorm(1, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -1766,7 +1783,7 @@ model{
   # Beta for summer temperature (site-specific)
   
   # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(0, 0.01)
+  mu.beta.cov ~ dnorm(-0.5, 0.01)
   
   # tau.beta.cov - precision parameter for beta.covs
   # sd parameter for tau.beta.covs
@@ -1813,7 +1830,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.adult[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
     }
@@ -1849,7 +1866,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
                   p1_adult = p1_adult, 
                   p2_adult = p2_adult, 
@@ -1878,7 +1895,7 @@ for (i in 1:nReps) {
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, 0, 0.01),
+                             mu.beta.cov = rnorm(1, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -1949,7 +1966,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.YOY[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
     }
@@ -1985,7 +2002,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   p1_YOY = p1_YOY, 
                   p2_YOY = p2_YOY, 
                   p3_YOY = p3_YOY,
@@ -2078,7 +2095,7 @@ model{
     for (t in 1:nYears) {
     
       # Data
-      N.adult[i,t] ~ dpois((Area[i] / 1000) * lambda[i,t])
+      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
       log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
     }
@@ -2114,7 +2131,7 @@ sink()
 jags_data <- list(nReps = nReps, 
                   nYears = nYears,
                   nSources = nSources,
-                  Area = COMID_data$COMID_Area,
+                  Area = sample_areas_wide,
                   p1_adult = p1_adult, 
                   p2_adult = p2_adult, 
                   p3_adult = p3_adult,
@@ -2211,13 +2228,14 @@ sources.table <- p1_YOY %>%
   .[,c("Agency", "Data_Range", "NYears_Data")]
 
 #####################################
-# Create a table of covariate and segment summaries
+# Create a table of segment summaries
 
 # Get NHDPlus data for the segments considered for the analysis
 SE_segments_NHDPlus <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/GIS Data/NHDplus/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07/NHDPlusv2.1_National_FlowlineData.csv")
 SE_segments_NHDPlus <- SE_segments_NHDPlus %>%
-  filter(COMID %in% COMID_data$COMID) %>% 
-  dplyr::select(SLOPE,
+  filter(COMID %in% sample_areas$COMID) %>% 
+  dplyr::select(COMID,
+                SLOPE,
                 LENGTHKM,
                 AreaSqKM,
                 MINELEVSMO,
@@ -2225,57 +2243,79 @@ SE_segments_NHDPlus <- SE_segments_NHDPlus %>%
                 AreaSqKM,
                 StreamOrde)
 
+# filter for N and S subregions
+SE_segments_NHDPlus_N <- SE_segments_NHDPlus %>% 
+  filter(COMID %in% N_Sites$COMID)
+
+SE_segments_NHDPlus_S <- SE_segments_NHDPlus %>% 
+  filter(COMID %in% S_Sites$COMID)
+
 # Get widths of sites within the segments considered for the analysis
 SE_segments <- SE_Site_Final %>% 
-  filter(COMID %in% COMID_data$COMID) %>% 
-  select(Width_m,
+  filter(COMID %in% sample_areas$COMID) %>% 
+  select(COMID,
+         Width_m,
          Elev_m)
 
-Segment_Summary.table <- data.frame(Variable = c("Mean 90th percentile summer temperature (C)",
-                                                 "Maximum 90th percentile winter streamflow (ft^3/s)",
-                                                 "Maximum 90th percentile spring streamflow (ft^3/s)",
-                                                 "Channel Slope (%)",
+# filter for N and S subregions
+SE_segments_N <- SE_segments %>% 
+  filter(COMID %in% N_Sites$COMID)
+
+SE_segments_S <- SE_segments %>% 
+  filter(COMID %in% S_Sites$COMID)
+
+Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                                  "Length (km)",
                                                  "Catchment area (km^2)",
                                                  "Elevation (m)",
                                                  "Stream order",
                                                  "Wetted width (m)"),
-                                    Mean = c(mean(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
-                                             mean(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
-                                             mean(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
-                                             mean(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
-                                             mean(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
-                                             mean(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
-                                             mean(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                             mean(SE_segments_NHDPlus$StreamOrde, na.rm = T),
-                                             mean(SE_segments$Width_m, na.rm = T)),
-                                    Median = c(median(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
-                                               median(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
-                                               median(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
-                                               median(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
-                                               median(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
-                                               median(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
-                                               median(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                               median(SE_segments_NHDPlus$StreamOrde, na.rm = T),
-                                               median(SE_segments$Width_m, na.rm = T)),
-                                    Maximum = c(max(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
-                                                max(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
-                                                max(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
-                                                max(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
-                                                max(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
-                                                max(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
-                                                max(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                                max(SE_segments_NHDPlus$StreamOrde, na.rm = T),
-                                                max(SE_segments$Width_m, na.rm = T)),
-                                    Minimum = c(min(SE_COMID_temp_covars$Mean_Max_Summer_Temp),
-                                                min(SE_COMID_flow_covars$Max_0.9Q_WinterFlow),
-                                                min(SE_COMID_flow_covars$Max_0.9Q_SpringFlow),
-                                                min(SE_segments_NHDPlus$SLOPE, na.rm = T)*100,
-                                                min(SE_segments_NHDPlus$LENGTHKM, na.rm = T),
-                                                min(SE_segments_NHDPlus$AreaSqKM, na.rm = T),
-                                                min(rowMeans(SE_segments_NHDPlus[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                                min(SE_segments_NHDPlus$StreamOrde, na.rm = T),
-                                                min(SE_segments$Width_m, na.rm = T)))
+                                    North_Mean = c(mean(SE_segments_NHDPlus_N$SLOPE, na.rm = T)*100,
+                                             mean(SE_segments_NHDPlus_N$LENGTHKM, na.rm = T),
+                                             mean(SE_segments_NHDPlus_N$AreaSqKM, na.rm = T),
+                                             mean(rowMeans(SE_segments_NHDPlus_N[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                             mean(SE_segments_NHDPlus_N$StreamOrde, na.rm = T),
+                                             mean(SE_segments_N$Width_m, na.rm = T)),
+                                    North_SD = c(sd(SE_segments_NHDPlus_N$SLOPE, na.rm = T)*100,
+                                                sd(SE_segments_NHDPlus_N$LENGTHKM, na.rm = T),
+                                                sd(SE_segments_NHDPlus_N$AreaSqKM, na.rm = T),
+                                                sd(rowMeans(SE_segments_NHDPlus_N[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                                sd(SE_segments_NHDPlus_N$StreamOrde, na.rm = T),
+                                                sd(SE_segments_N$Width_m, na.rm = T)),
+                                    South_Mean = c(mean(SE_segments_NHDPlus_S$SLOPE, na.rm = T)*100,
+                                                   mean(SE_segments_NHDPlus_S$LENGTHKM, na.rm = T),
+                                                   mean(SE_segments_NHDPlus_S$AreaSqKM, na.rm = T),
+                                                   mean(rowMeans(SE_segments_NHDPlus_S[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                                   mean(SE_segments_NHDPlus_S$StreamOrde, na.rm = T),
+                                                   mean(SE_segments_S$Width_m, na.rm = T)),
+                                    South_SD = c(sd(SE_segments_NHDPlus_S$SLOPE, na.rm = T)*100,
+                                                 sd(SE_segments_NHDPlus_S$LENGTHKM, na.rm = T),
+                                                 sd(SE_segments_NHDPlus_S$AreaSqKM, na.rm = T),
+                                                 sd(rowMeans(SE_segments_NHDPlus_S[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
+                                                 sd(SE_segments_NHDPlus_S$StreamOrde, na.rm = T),
+                                                 sd(SE_segments_S$Width_m, na.rm = T)))
+
+#####################################
+# Create a table of covariate summaries
+
+# Filter for temp data at sites and years where we have trout data
+temp_summary_data <- SE_COMID_temp_covars %>% 
+  filter(COMID %in% p1_YOY$COMID,
+         Year %in% 1981:2015)
+
+flow_summary_data <- SE_COMID_flow_covars %>% 
+  filter(COMID %in% p1_YOY$COMID,
+         Year %in% 1982:2015)
+
+nMix_Covar_Summary.table <- data.frame(Covar = c("Mean 90th percentile summer temperature (C)",
+                                       "Maximum 90th percentile winter streamflow (ft^3/s)", 
+                                       "Maximum 90th percentile spring streamflow (ft^3/s)"),
+                                       Mean = c(mean(temp_summary_data$Mean_Max_Summer_Temp),
+                                                mean(flow_summary_data$Max_0.9Q_WinterFlow),
+                                                mean(flow_summary_data$Max_0.9Q_SpringFlow)),
+                                       sd = c(sd(temp_summary_data$Mean_Max_Summer_Temp),
+                                              sd(flow_summary_data$Max_0.9Q_WinterFlow),
+                                              sd(flow_summary_data$Max_0.9Q_SpringFlow)))
 
 ###################
 # PPC p-values
@@ -2653,58 +2693,82 @@ C_Val_YOY_SprFlow_map <- ggplot() +
 
 ################
 # Summarize covariate effects in table
-Cov_Effects <- data.frame(
-  Covariate = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                "Max 0.9Q Winter Flow (Year t)",
-                "Max 0.9Q Spring Flow (Year t)"), times = 6),
-  Life_Stage = rep(c(rep("YOY", times = 3),
-                    rep("Adult", times = 3)), times = 3),
-  Subregion = c(rep("N+S", times = 6),
-                rep("N", times = 6),
-                rep("S", times = 6))) %>% 
-  # add in jagsUI model summary values
-  cbind(rbind(YOY_BKT_nMix_full_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
-              Adult_BKT_nMix_full_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
-              YOY_BKT_nMix_full_N_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
-              Adult_BKT_nMix_full_N_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
-              YOY_BKT_nMix_full_S_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4],
-              Adult_BKT_nMix_full_S_params[c("mu.beta.cov[1]", "mu.beta.cov[2]", "mu.beta.cov[3]"),1:4]))
+# plot data
+mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
+                                                             as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,2]),
+                                                             as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,3])),
+                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
+                                                        "Max 0.9Q Winter Flow (Year t)",
+                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                                      each = length(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1])),
+                                          life_stage = rep("YOY"),
+                                          subregion = rep("N+S")),
+                               data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
+                                                             as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,2]),
+                                                             as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,3])),
+                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
+                                                        "Max 0.9Q Winter Flow (Year t)",
+                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                                      each = length(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,1])),
+                                          life_stage = rep("Adult"),
+                                          subregion = rep("N+S")),
+                               data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,1]),
+                                                             as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,2]),
+                                                             as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,3])),
+                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
+                                                        "Max 0.9Q Winter Flow (Year t)",
+                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                                      each = length(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,1])),
+                                          life_stage = rep("YOY"),
+                                          subregion = rep("N")),
+                               data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,1]),
+                                                             as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,2]),
+                                                             as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,3])),
+                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
+                                                        "Max 0.9Q Winter Flow (Year t)",
+                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                                      each = length(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,1])),
+                                          life_stage = rep("Adult"),
+                                          subregion = rep("N")),
+                               data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,1]),
+                                                             as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,2]),
+                                                             as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,3])),
+                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
+                                                        "Max 0.9Q Winter Flow (Year t)",
+                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                                      each = length(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,1])),
+                                          life_stage = rep("YOY"),
+                                          subregion = rep("S")),
+                               data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,1]),
+                                                             as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,2]),
+                                                             as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,3])),
+                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
+                                                        "Max 0.9Q Winter Flow (Year t)",
+                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                                      each = length(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,1])),
+                                          life_stage = rep("Adult"),
+                                          subregion = rep("S")))
 
 # Reorder the subregions so the the N+S region plots first
-Cov_Effects$Subregion <- factor(Cov_Effects$Subregion, c("N+S", "N", "S"))
+mu.beta_samples.table$subregion <- factor(mu.beta_samples.table$subregion, c("N+S", "N", "S"))
 
-# and make a plot to visualize
-cov_effects.plot <- ggplot(data = Cov_Effects) +
-  geom_pointrange(aes(x = Covariate,
-                      y = mean,
-                     ymin = `95%_HPDL`, #includes 95% highest density intervals
-                     ymax = `95%_HPDU`,
-                     #color = Life_Stage,
-                     linetype = Subregion),
-                 position = position_dodge(.35),
-                 size = 0.5,
-                 fatten = 1) +
-  facet_wrap(~ Life_Stage) +
-  # scale_color_brewer(palette = "Dark2") +
-  geom_hline(yintercept = 0, linetype = "dashed", size = 0.5) +
-  labs(#title = "Covariate Effects on Log Density of BKT",
-       #color = "Life Stage",
-       x = element_blank(),
-       y = element_blank()) +
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 11)) +
-  theme_classic() + 
-  theme(text = element_text(family =  "serif"),
-        legend.key.size = unit(2,"line"))
-
-# # save plot
-# ggsave("BKT_Nmix_EnvCov_PstrEffects.jpg",
-#        plot = cov_effects_plot,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
+# plot
+cov_effects.plot <- ggplot(mu.beta_samples.table) +
+  geom_violin(aes(x = sample_val,
+                  y = covar,
+                  fill = fct_rev(subregion)),
+              trim = F,
+              alpha = 0.75,
+              color = NA) +
+  facet_grid(life_stage ~ .) +
+  geom_vline(xintercept = 0, linetype = "dashed", size = 0.5) +
+  theme_classic() +
+  labs(x = "Value",
+       y = element_blank(),
+       fill = "Subregion") +
+  scale_fill_brewer(palette = "Dark2",
+                    limits = c("N+S", "N", "S")) +
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
 
 
 ################
@@ -2755,7 +2819,7 @@ Detect_probs.plot <- ggplot(data = Detect_probs.table) +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v1.0")
+run_dir <- here("results", "v2.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]
