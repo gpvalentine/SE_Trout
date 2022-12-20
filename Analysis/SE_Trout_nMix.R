@@ -63,7 +63,7 @@ source_agency_crosswalk <- data.frame(Source = unique(SE_Site_Final$Source),
 
 # COMID/Site data for model
 sample_areas <- SE_Sample_Final %>% 
-  left_join(SE_Site_Final) %>% 
+  left_join(SE_Site_Final[,c("SiteID", "COMID", "Lat", "Long", "Length_m", "Width_m")], by = "SiteID") %>% 
   filter(SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
          Lat <= 39.716667, # filter for just sites south of the Mason-Dixon Line
          COMID %in% SE_COMID_flow_covars$COMID, # filter for COMIDs for which we have flow data - there are several sites in Maine with no flow
@@ -73,7 +73,6 @@ sample_areas <- SE_Sample_Final %>%
   summarise(Area_Sampled = sum(Length_m * Width_m)) %>%  # Calculates the sum of site areas within the stream segment that were sampled that year
   filter(Year >= 1981, # Filter to one year after the earliest year that we have temperature data
          Year <= 2015)    # Filter to the latest year that we have flow data
-  
 
 # What was the percentage of single- vs multipass electrofishing?
 passes_pcts.table <- SE_Sample_Final %>% 
@@ -2206,6 +2205,28 @@ sites_map.plot <- ggplot() +
   theme_classic() + 
   theme(text = element_text(family =  "serif"))
 
+########################################
+# make another dataframe of segments with coordinates for later mapping
+segment_data <- SE_Site_Final %>% 
+  select(COMID,
+         Source,
+         State,
+         Lat,
+         Long) %>% 
+  group_by(COMID) %>% 
+  summarize(State = first(State),
+            Source = first(Source),
+            Lat = first(Lat),
+            Long = first(Long)) %>% 
+  right_join(p1_YOY[,"COMID"])
+
+# make north and south versions too
+segment_data_N <- segment_data %>% 
+  filter(COMID %in% N_Sites$COMID)
+
+segment_data_S <- segment_data %>% 
+  filter(COMID %in% S_Sites$COMID)
+
 ######################################
 # Create a table of source data
 
@@ -2332,7 +2353,8 @@ Adult_full_PPCs <- Adult_BKT_nMix_full_params %>%
 
 PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 2),
                                              rep("Adult", 2)),
-                              pVal = cbind(YOY_full_PPCs,
+                              stat = rep(c("mean", "CV"), 2),
+                              pVal = rbind(YOY_full_PPCs,
                                            Adult_full_PPCs))
 
 ###################
@@ -2340,47 +2362,44 @@ PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 2),
 # Join site data to ICC values
 YOY_ICCs.table <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data[,c(1,3,4)])
+  filter(str_detect(param, "ICC.YOY\\[")) %>% 
+  cbind(segment_data)
 
 Adult_ICCs.table <- Adult_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data[,c(1,3,4)])
-
-# Export for Shiny app
-fwrite(YOY_ICCs, "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/Synchrony_App/YOY_ICCS.csv")
+  filter(str_detect(param, "ICC.adult\\[")) %>% 
+  cbind(segment_data)
 
 YOY_ICCs_N.table <- YOY_BKT_nMix_full_N_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data_N[,c(1,3,4)])
+  filter(str_detect(param, "ICC.YOY\\[")) %>% 
+  cbind(segment_data_N)
 
 YOY_ICCs_S.table <- YOY_BKT_nMix_full_S_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data_S[,c(1,3,4)])
+  filter(str_detect(param, "ICC.YOY\\[")) %>% 
+  cbind(segment_data_S)
 
 Adult_ICCs_N.table <- Adult_BKT_nMix_full_N_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data_N[,c(1,3,4)])
+  filter(str_detect(param, "ICC.adult\\[")) %>% 
+  cbind(segment_data_N)
 
 Adult_ICCs_S.table <- Adult_BKT_nMix_full_S_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "ICC")) %>% 
-  cbind(COMID_data_S[,c(1,3,4)])
+  filter(str_detect(param, "ICC.adult\\[")) %>% 
+  cbind(segment_data_S)
 
 # Do the most synchronous/asynchronous sites from the N/S show up in the the overall ICCs?
 YOY_highestICCs_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = head(arrange(YOY_ICCs_N, desc(mean))), 
+  geom_point(data = head(arrange(YOY_ICCs_N.table, desc(mean))), 
              aes(x = Long, y = Lat), shape = 5) + # diamonds
-  geom_point(data = head(arrange(YOY_ICCs_S, desc(mean))), 
+  geom_point(data = head(arrange(YOY_ICCs_S.table, desc(mean))), 
               aes(x = Long, y = Lat), shape = 1) + # circles
-  geom_point(data = head(arrange(YOY_ICCs, desc(mean))), 
+  geom_point(data = head(arrange(YOY_ICCs.table, desc(mean))), 
               aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
@@ -2397,11 +2416,11 @@ YOY_lowestICCs_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = head(arrange(YOY_ICCs_N, mean)),
+  geom_point(data = head(arrange(YOY_ICCs_N.table, mean)),
              aes(x = Long, y = Lat), shape = 5) +
-  geom_point(data = head(arrange(YOY_ICCs_S, mean)),
+  geom_point(data = head(arrange(YOY_ICCs_S.table, mean)),
              aes(x = Long, y = Lat), shape = 1) +
-  geom_point(data = head(arrange(YOY_ICCs, mean)), 
+  geom_point(data = head(arrange(YOY_ICCs.table, mean)), 
              aes(x = Long, y = Lat), shape = 3) +
   coord_map("bonne",
             lat0 = 40,
@@ -2418,11 +2437,11 @@ Adult_highestICCs_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = head(arrange(Adult_ICCs_N, desc(mean))), 
+  geom_point(data = head(arrange(Adult_ICCs_N.table, desc(mean))), 
              aes(x = Long, y = Lat), shape = 5) +
-  geom_point(data = head(arrange(Adult_ICCs_S, desc(mean))), 
+  geom_point(data = head(arrange(Adult_ICCs_S.table, desc(mean))), 
              aes(x = Long, y = Lat), shape = 1) +
-  geom_point(data = head(arrange(Adult_ICCs, desc(mean))), 
+  geom_point(data = head(arrange(Adult_ICCs.table, desc(mean))), 
              aes(x = Long, y = Lat), shape = 3) +
   coord_map("bonne",
             lat0 = 40,
@@ -2439,11 +2458,11 @@ Adult_lowestICCs_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = head(arrange(Adult_ICCs_N, mean)), 
+  geom_point(data = head(arrange(Adult_ICCs_N.table, mean)), 
              aes(x = Long, y = Lat), shape = 5) +
-  geom_point(data = head(arrange(Adult_ICCs_S, mean)), 
+  geom_point(data = head(arrange(Adult_ICCs_S.table, mean)), 
              aes(x = Long, y = Lat), shape = 1) +
-  geom_point(data = head(arrange(Adult_ICCs, mean)), 
+  geom_point(data = head(arrange(Adult_ICCs.table, mean)), 
              aes(x = Long, y = Lat), shape = 3) +
   coord_map("bonne",
             lat0 = 40,
@@ -2463,7 +2482,7 @@ YOY_ICC_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = YOY_ICCs, 
+  geom_point(data = YOY_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
   coord_map("bonne",
             lat0 = 40,
@@ -2477,21 +2496,12 @@ YOY_ICC_map.plot <- ggplot() +
   theme_classic() + 
   theme(text = element_text(family =  "serif"))
 
-# ggsave("BKT_Nmix_YOY_ICCs_Map.jpg",
-#        plot = YOY_ICC_map,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
-
 # Adult
 Adult_ICC_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = Adult_ICCs, 
+  geom_point(data = Adult_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
   coord_map("bonne",
             lat0 = 40,
@@ -2505,32 +2515,24 @@ Adult_ICC_map.plot <- ggplot() +
   theme_classic() + 
   theme(text = element_text(family =  "serif"))
 
-# ggsave("BKT_Nmix_Adult_ICCs_Map.jpg",
-#        plot = Adult_ICC_map,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
-
 # Is ICC correlated with any site-level variables?
 library(corrplot)
-ICC_corr_data <- YOY_ICCs %>% 
-  left_join(SE_Site_Final, by = "COMID")
 
-YOY_corrPlot <- corrplot(cor(ICC_corr_data[,c(2,14:18)], method="spearman", use="pairwise.complete.obs"))
+# load NHDplus data
+NHDplus_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/GIS Data/NHDplus/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07/NHDPlusv2.1_National_FlowlineData.csv")
+# and filter to our sites
+NHDplus_data <- NHDplus_data %>% 
+  filter(COMID %in% segment_data$COMID)
+
+ICC_corr_data <- YOY_ICCs.table[,c(2,8)] %>% 
+  left_join(SE_Site_Final, by = "COMID") %>% 
+  left_join(NHDplus_data)
+
+YOY_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
 # get values
-YOY_corrPlot$corrPos
+YOY_corrPlot$corrPos[xName == "mean",]
 # mean ICC is not really correlated with any of these site-level covars
 
-Adult_corrPlot <- corrplot(cor(Adult_ICCs[,c(2,18:22)], method="spearman", use="pairwise.complete.obs"))
-# get values
-Adult_corrPlot$corrPos
-
-v13_YOY_partialWintFlow_params %>% 
-  rownames_to_column(., "param") %>% 
-  view()
 ###########################
 # Calculate C values for all environmental covariates using posterior means from full and null models
 
@@ -2578,9 +2580,9 @@ for (i in 1:nReps){
 }
 
 # bind COMIDs to C.gam values
-Local_Cs.table <- data.frame(COMID = COMID_data$COMID,
-                     Lat = COMID_data$Lat,
-                     Long = COMID_data$Long) %>% 
+Local_Cs.table <- data.frame(COMID = segment_data$COMID,
+                     Lat = segment_data$Lat,
+                     Long = segment_data$Long) %>% 
   cbind(Local_Cs.table)
 
 # Create maps to show posterior means of site-specific C values 
@@ -2664,32 +2666,6 @@ C_Val_YOY_SprFlow_map <- ggplot() +
 # Compound_C_Vals_map <- grid.arrange(C_Val_YOY_SummTemp_map, C_Val_YOY_WintFlow_map, C_Val_YOY_SprFlow_map,
 #                                     nrow = 1)
 
-# save plots
-# ggsave("BKT_Nmix_Compound_C_Vals_SummTemp_Map.jpg",
-#        plot = C_Val_YOY_SummTemp_map,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
-# ggsave("BKT_Nmix_Compound_C_Vals_WintFlow_Map.jpg",
-#        plot = C_Val_YOY_WintFlow_map,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
-# ggsave("BKT_Nmix_Compound_C_Vals_SprFlow_Map.jpg",
-#        plot = C_Val_YOY_SprFlow_map,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
-
 
 ################
 # Summarize covariate effects in table
@@ -2770,6 +2746,45 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
                     limits = c("N+S", "N", "S")) +
   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
 
+# map betas (segment-specific covariate effects) in space
+YOY_climate_effects.table <- rbind(YOY_BKT_nMix_full_params %>% 
+                                     rownames_to_column(., "param") %>% 
+                                     filter(str_detect(param, "beta.cov\\[1,")) %>% 
+                                     select(mean),
+                                   YOY_BKT_nMix_full_params %>% 
+                                     rownames_to_column(., "param") %>% 
+                                     filter(str_detect(param, "beta.cov\\[2,")) %>% 
+                                     select(mean),
+                                   YOY_BKT_nMix_full_params %>% 
+                                     rownames_to_column(., "param") %>% 
+                                     filter(str_detect(param, "beta.cov\\[3,")) %>% 
+                                     select(mean)) %>% 
+  cbind(segment_data,
+        rbind(data.frame(covar = rep("Summer Temperature", 159)),
+              data.frame(covar = rep("Winter Flow", 159)),
+              data.frame(covar = rep("Spring Flow", 159))))
+
+# reorder the covariates so that summer temperature plots first
+YOY_climate_effects.table$covar <- factor(YOY_climate_effects.table$covar, c("Summer Temperature", "Winter Flow", "Spring Flow"))
+
+YOY_climate_effects_map.plot <- ggplot() +
+  geom_polygon(data = US_states, 
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = YOY_climate_effects.table, 
+             aes(x = Long, y = Lat, color = mean), 
+             alpha = 0.5) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
+  labs(x = "Long",
+       y = "Lat",
+       color = TeX(r'($\beta$ Value)')) +
+  scale_color_viridis_c() +
+  theme_classic() +
+  facet_grid(. ~ covar)
+
 
 ################
 # Summarize detection probability in table
@@ -2819,7 +2834,7 @@ Detect_probs.plot <- ggplot(data = Detect_probs.table) +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v2.0")
+run_dir <- here("results", "v1.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

@@ -528,7 +528,7 @@ Adult_BKT.COMID.logDens.synch.plot <- ggplot() +
   geom_line(data = Adult_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = 0) +
-  geom_hline(yintercept = Adult_BKT.COMID.logDens.corr$real$cbar,
+  geom_hline(yintercept = Adult_BKT_COMID_logDens.corr$real$cbar,
              linetype = "dashed") +
   theme_classic() +
   lims(x = c(0, 1000),
@@ -1138,7 +1138,7 @@ compound_corrgram1.plot <- ggplot() +
   # Formatting
   geom_hline(yintercept = 0) +
   theme_classic() +
-  lims(y = c(-0.5, 1)) +
+  lims(y = c(-0.25, 1)) +
   labs(x = "Pairwise Distance (km)",
        y = "Correlation",
        fill = "Legend") +
@@ -1209,18 +1209,43 @@ compound_corrgram2.plot <- ggplot() +
               alpha = 0.5) +
   geom_line(data = Adult_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = Adult_BKT.COMID.logDens.corr$real$cbar,
+  geom_hline(yintercept = Adult_BKT_COMID_logDens.corr$real$cbar,
              linetype = "dashed",
              color = "#66a61e",
              alpha = 0.5) +
   # Formatting
   geom_hline(yintercept = 0) +
   theme_classic() +
-  lims(y = c(-0.5, 1)) +
+  lims(y = c(-0.25, 1)) +
   labs(x = "Pairwise Distance (km)",
        y = "Correlation",
        fill = "Legend") +
   scale_fill_manual(values = colors2)
+
+#####################################
+# Create a table of covariate summaries
+
+# Filter for temp data at sites and years where we have trout data
+temp_summary_data <- SE_COMID_temp_covars %>% 
+  filter(COMID %in% p1_YOY$COMID,
+         Year %in% 1981:2015)
+
+flow_summary_data <- SE_COMID_flow_covars %>% 
+  filter(COMID %in% p1_YOY$COMID,
+         Year %in% 1982:2015)
+
+Corrgram_Covar_Summary.table <- data.frame(Covar = c("Mean Estimated Monthly Winter Flow (ft^3/s)",
+                                                 "Mean Daily Observed Summer Air Temp (C)", 
+                                                 "Mean Daily Observed Summer Water Temp (C)",
+                                                 "Total Observed Monthly Winter Precip (1/10th mm)"),
+                                       Mean = c(mean(flow_data2$Mean_EstQ_WinterFlow),
+                                                mean(obs_temp$Mean_Summer_AirTemp, na.rm = T),
+                                                mean(obs_temp$Mean_Summer_WaterTemp, na.rm = T),
+                                                mean(SE_precip_winter$Total_Winter_Precip)),
+                                       sd = c(sd(flow_data2$Mean_EstQ_WinterFlow),
+                                              sd(obs_temp$Mean_Summer_AirTemp, na.rm = T),
+                                              sd(obs_temp$Mean_Summer_WaterTemp, na.rm = T),
+                                              sd(SE_precip_winter$Total_Winter_Precip)))
 
 
 ########################################################

@@ -15,8 +15,8 @@ library(sp)
 # Join site data to ICC values
 YOY_ICCs <- YOY_BKT_nMix_full_params %>%
   rownames_to_column(., "param") %>%
-  filter(str_detect(param, "ICC")) %>%
-  cbind(COMID_data[,c(1,3:4)])
+  filter(str_detect(param, "ICC.YOY\\[")) %>%
+  cbind(segment_data)
 
 YOY_ICCs.sp <- YOY_ICCs
 coordinates(YOY_ICCs.sp) <- ~Long + Lat
@@ -52,8 +52,8 @@ YOY_ICCs_semivariogram.plot <- ggplot(data = as.data.frame(YOY_ICC_semivariogram
 # Join site data to ICC values
 YOY_Betas_SummTemp <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov") & str_detect(param, "1,")) %>% # this filters out the beta[1,] parameters
-  cbind(COMID_data[,c(1,3:4)])
+  filter(str_detect(param, "beta.cov\\[1,")) %>% # this filters out the beta[1,] parameters
+  cbind(segment_data)
 
 YOY_Betas_SummTemp.sp <- YOY_Betas_SummTemp
 coordinates(YOY_Betas_SummTemp.sp) <- ~Long + Lat
@@ -87,8 +87,8 @@ YOY_SummTempBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Su
 # Join site data to ICC values
 YOY_Betas_WintFlow <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov") & str_detect(param, "2,")) %>% # this filters out the beta[1,] parameters
-  cbind(COMID_data[,c(1,3:4)])
+  filter(str_detect(param, "beta.cov\\[2,")) %>% # this filters out the beta[1,] parameters
+  cbind(segment_data)
 
 YOY_Betas_WintFlow.sp <- YOY_Betas_WintFlow
 coordinates(YOY_Betas_WintFlow.sp) <- ~Long + Lat
@@ -122,8 +122,8 @@ YOY_WintFlowBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Wi
 # Join site data to ICC values
 YOY_Betas_SprFlow <- YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov") & str_detect(param, "3,")) %>% # this filters out the beta[1,] parameters
-  cbind(COMID_data[,c(1,3:4)])
+  filter(str_detect(param, "beta.cov\\[3,")) %>% # this filters out the beta[1,] parameters
+  cbind(segment_data)
 
 YOY_Betas_SprFlow.sp <- YOY_Betas_SprFlow
 coordinates(YOY_Betas_SprFlow.sp) <- ~Long + Lat
@@ -152,6 +152,28 @@ YOY_SprFlowBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Spr
   labs(x = "Distance Class (DD)",
        y = "Semivariance") +
   theme_classic()
+
+########################
+# make a compound semivariogram
+YOY_Betas_compound_semivariogram.table <- rbind(as.data.frame(YOY_Betas_SummTemp_semivariogram[1:2]),
+                                                as.data.frame(YOY_Betas_WintFlow_semivariogram[1:2]),
+                                                as.data.frame(YOY_Betas_SprFlow_semivariogram[1:2])) %>% 
+  cbind(rbind(data.frame(covar = rep("Summer Temperature", 14)),
+              data.frame(covar = rep("Winter Flow", 14)),
+              data.frame(covar = rep("Spring Flow", 14))))
+
+# reorder the covariates so that summer temperature plots first
+YOY_Betas_compound_semivariogram.table$covar <- factor(YOY_Betas_compound_semivariogram.table$covar, c("Summer Temperature", "Winter Flow", "Spring Flow"))
+
+
+YOY_climate_effects_semivariogram.plot <- ggplot() +
+  geom_point(data = YOY_Betas_compound_semivariogram.table,
+             aes(x = u,
+                 y = v)) +
+  labs(x = "Distance Class (DD)",
+       y = "Semivariance") +
+  theme_classic() +
+  facet_grid(. ~ covar)
 
 ########################################################
 # Export plots to the results folder
