@@ -17,6 +17,7 @@ library(MCMCvis)      # For summarizing MCMC outputs
 library(HDInterval)   # For calculating 95% credible intervals
 library(gridExtra)    # For combining plots
 library(here)         # for smart file paths - eliminates exact paths
+library(PerformanceAnalytics) # For conducting correlation tests
 
 
 # Load data
@@ -101,7 +102,7 @@ YOY_BKT_passCounts <- SE_Ind_Final %>%
   .[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
 
 
-      # what's teh proportion of segments that have mutiple sites in them?
+      # what's the proportion of segments that have mutiple sites in them?
       sites_in_segments <- SE_Ind_Final %>% 
         left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
         mutate(Year = year(Date)) %>% 
@@ -300,6 +301,9 @@ Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_SpringFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
+
+    # Are winter and spring flows correlated?
+    chart.Correlation(SE_COMID_flow_covars[,3:4], method = "spearman")
 
 # use a right join to get duplicates for the COMIDs with multiple sources of data
 Max_0.9Q_SpringFlow_Scaled <- Max_0.9Q_SpringFlow_Scaled %>% 
@@ -523,6 +527,12 @@ YOY_BKT_nMix_full_params <- MCMCsummary(YOY_BKT_nMix_full,
 
 MCMCtrace(YOY_BKT_nMix_full, params = "mu.beta.cov", pdf = F)
 
+# What was the range of winter flow effects on YOY abundance?
+YOY_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta.cov\\[2")) %>% 
+  .[,2] %>% 
+  range()
 
 ## Adults
 sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags")
@@ -1469,6 +1479,9 @@ YOY_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
 
 YOY_BKT_nMix_partialWintFlow_params <- MCMCsummary(YOY_BKT_nMix_partialWintFlow, HPD = T)
 
+# What is the range of winter flow effects on YOY abundance?
+range(MCMCsummary(YOY_BKT_nMix_partialWintFlow, params = "beta.cov", HPD = T)[,1])
+
 ## Adult
 sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialWintFlow.jags")
 cat("
@@ -2181,18 +2194,35 @@ Adult_BKT_nMix_null_params <- MCMCsummary(Adult_BKT_nMix_null,
 ######################################
 ### Post-Hoc
 ######################################
-# Create a map of sites
+
+# make a dataframe of segments with coordinates for mapping
+COMIDs_source <- SE_Site_Final %>% 
+  filter(COMID %in% p1_YOY$COMID) %>% 
+  group_by(COMID,
+           Source) %>% 
+  summarize(State = first(State),
+            Lat = first(Lat),
+            Long = first(Long),
+            Elev_m = first(Elev_m))
+
+segment_data <- data.frame(Source = sources) %>% 
+  mutate(sourceNum = row_number()) %>% 
+  right_join(p1_YOY[,c("COMID", "Source")], by = c("sourceNum" = "Source")) %>% 
+  left_join(source_agency_crosswalk) %>% 
+  left_join(COMIDs_source, by = c("COMID", "Source")) %>% 
+  dplyr::select(-sourceNum)
+
+# Export to make the map in QGIS
+#fwrite(segment_data, here("Data", "SE_Trout_Segments_filtered.csv"))
+
+# Create a map of segments
 US_states <- map_data("state")
 
-sites_map_data <- SE_Site_Final %>% 
-  filter(COMID %in% p1_YOY$COMID) %>% 
-  left_join(source_agency_crosswalk)
-
-sites_map.plot <- ggplot() +
+segments_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = sites_map_data, 
+  geom_point(data = segment_data, 
              aes(x = Long, y = Lat, color = Agency), alpha = 0.5) +
   coord_map("albers",
             parameters = c(29.5, 45.5),
@@ -2204,21 +2234,6 @@ sites_map.plot <- ggplot() +
   scale_color_brewer(palette = "Set1") +
   theme_classic() + 
   theme(text = element_text(family =  "serif"))
-
-########################################
-# make another dataframe of segments with coordinates for later mapping
-segment_data <- SE_Site_Final %>% 
-  select(COMID,
-         Source,
-         State,
-         Lat,
-         Long) %>% 
-  group_by(COMID) %>% 
-  summarize(State = first(State),
-            Source = first(Source),
-            Lat = first(Lat),
-            Long = first(Long)) %>% 
-  right_join(p1_YOY[,"COMID"])
 
 # make north and south versions too
 segment_data_N <- segment_data %>% 
@@ -2337,6 +2352,57 @@ nMix_Covar_Summary.table <- data.frame(Covar = c("Mean 90th percentile summer te
                                        sd = c(sd(temp_summary_data$Mean_Max_Summer_Temp),
                                               sd(flow_summary_data$Max_0.9Q_WinterFlow),
                                               sd(flow_summary_data$Max_0.9Q_SpringFlow)))
+
+###################
+# Stock-recruitment curves
+stock_recruit_data <- SE_Ind_Final %>%
+  group_by(SampleID) %>% 
+  summarise(Year = first(year(Date)),
+            SiteID = first(SiteID),
+            n_YOY = sum(TL_mm <= 90),
+            n_Adults = sum(TL_mm > 90)) %>% 
+  ungroup() %>% 
+  left_join(SE_Site_Final[,c("SiteID", "COMID")]) %>%
+  filter(!is.na(COMID),
+         COMID %in% p1_YOY$COMID) %>% 
+  group_by(COMID,
+          Year) %>% 
+  summarise(log_YOY_t = log(mean(n_YOY)+1),
+            log_Adults_t = log(mean(n_Adults))+1) %>% 
+  mutate(log_YOY_tp1 = lead(log_YOY_t),
+         log_Adults_tp1 = lead(log_Adults_t))
+
+SSR_1.plot <- stock_recruit_data %>% 
+  ggplot(aes(x = log_YOY_t,
+             y = log_Adults_tp1)) +
+  #geom_point(size = 0.5) +
+  geom_smooth(aes(group = as.factor(COMID)), 
+              method = "lm", 
+              color = "black",
+              size = 0.33,
+              se = FALSE) +
+  geom_smooth(method = "lm", 
+              color = "blue",
+              se = FALSE) +
+  theme_classic() +
+  labs(x = "Log (mean YOY abundance) in year t",
+       y = "Log (mean Adult abundance) in year t+1")
+
+SSR_2.plot <- stock_recruit_data %>% 
+  ggplot(aes(x = log_Adults_t,
+             y = log_YOY_tp1)) +
+  #geom_point(size = 0.5) +
+  geom_smooth(aes(group = as.factor(COMID)), 
+              method = "lm", 
+              color = "black",
+              size = 0.33,
+              se = FALSE) +
+  geom_smooth(method = "lm", 
+              color = "blue",
+              se = FALSE) +
+  theme_classic() +
+  labs(x = "Log (mean Adult abundance) in year t",
+       y = "Log (mean YOY abundance) in year t+1")
 
 ###################
 # PPC p-values
@@ -2530,7 +2596,8 @@ ICC_corr_data <- YOY_ICCs.table[,c(2,8)] %>%
 
 YOY_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
 # get values
-YOY_corrPlot$corrPos[xName == "mean",]
+YOY_ICC_corrs.table <- as.data.frame(YOY_corrPlot$corrPos) %>% 
+  filter(xName == "mean")
 # mean ICC is not really correlated with any of these site-level covars
 
 ###########################
@@ -2668,6 +2735,7 @@ C_Val_YOY_SprFlow_map <- ggplot() +
 
 
 ################
+# Covariate effects/betas
 # Summarize covariate effects in table
 # plot data
 mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
@@ -2785,6 +2853,36 @@ YOY_climate_effects_map.plot <- ggplot() +
   theme_classic() +
   facet_grid(. ~ covar)
 
+####
+# are covariate effects (betas) correlated geographically?
+chart.Correlation(pivot_wider(YOY_climate_effects.table, names_from = covar, values_from = mean)[,5:10], method = "spearman")
+
+####
+# What proportion of beta.cov values are significant at 95% HDPIs for YOY?
+# Create a table to store these values
+pct_effects_negative.table <- data.frame(Covar = c("Summ Temp", "Wint Flow", "Spr Flow"),
+                                   pct_sgn_neg = rep(NA, times = 3))
+
+# Summer temp
+YOY_summTemp_betas <- YOY_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta.cov\\[1"))
+
+pct_effects_negative.table[1,2] <- sum(YOY_summTemp_betas[,"95%_HPDU"] < 0)/nrow(YOY_summTemp_betas) * 100
+
+# Winter Flow
+YOY_wintFlow_betas <- YOY_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta.cov\\[2"))
+
+pct_effects_negative.table[2,2] <- sum(YOY_wintFlow_betas[,"95%_HPDU"] < 0)/nrow(YOY_wintFlow_betas) * 100
+
+# Spring Flow
+YOY_sprFlow_betas <- YOY_BKT_nMix_full_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta.cov\\[3"))
+
+pct_effects_negative.table[3,2] <- sum(YOY_sprFlow_betas[,"95%_HPDU"] < 0)/nrow(YOY_sprFlow_betas) * 100
 
 ################
 # Summarize detection probability in table
@@ -2818,16 +2916,6 @@ Detect_probs.plot <- ggplot(data = Detect_probs.table) +
   theme_classic() + 
   theme(text = element_text(family =  "serif"),
         axis.text.x = element_text(angle = -45, hjust=0))
-
-# save plot
-# ggsave("BKT_Nmix_SourcePs.jpg",
-#        plot = Detect_probs_plot,
-#        path = "C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/Writing/Figures/",
-#        width = 500,
-#        height = 350,
-#        units = "mm",
-#        scale = 0.25,
-#        dpi = "retina")
 
 
 ########################################################
