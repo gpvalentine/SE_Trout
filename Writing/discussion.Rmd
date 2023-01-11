@@ -19,6 +19,8 @@ Macrosystems research often reveals non-stationarity in covariate effects [@wier
 * Since average high summer temperature was that of the previous year, how could it effect YOY abundance in year $t$? Those fish weren’t born yet when the temperatures happened. We think that these effects may result from nonlethal temperature effects on the parents of the YOY. 
 
 ## Drivers of synchrony
+
+Maybe there are other covariates that are more important drivers of asynchrony?
 *Come back to this later*We observed weak spatial synchrony arising from varying local responses to seasonal climate. Flows had the strongest synchronizing effects on YOY brook trout. Maximum winter flow had the largest contribution to synchrony of YOY, followed by maximum spring flow. Mean high summer temperature did not significantly contribute to synchrony of YOY. Since none of the three climate covariates considered had significant effects on adult abundance, none contributed significantly to adult synchrony. 
 
 Given these low contributions and that we only considered three climate drivers in our analysis, it's likely that outside factors created the sycnchrony and asynchrony observed here. *Come back to this too*
