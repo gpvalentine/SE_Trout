@@ -69,17 +69,33 @@ sample_areas <- SE_Sample_Final %>%
          Lat <= 39.716667, # filter for just sites south of the Mason-Dixon Line
          COMID %in% SE_COMID_flow_covars$COMID, # filter for COMIDs for which we have flow data - there are several sites in Maine with no flow
          COMID %in% SE_COMID_temp_covars$COMID) %>% # same goes for temperature - there's one site in Maine with no temp
-  group_by(Year = year(Date),
-           COMID) %>% 
-  summarise(Area_Sampled = sum(Length_m * Width_m)) %>%  # Calculates the sum of site areas within the stream segment that were sampled that year
+  group_by(COMID,
+           Year = year(Date),
+           Source) %>% 
+  summarise(Area_Sampled = sum(Length_m * Width_m)) %>%  # Calculates the sum of site areas within the stream segment that were sampled that year by that source
   filter(Year >= 1981, # Filter to one year after the earliest year that we have temperature data
-         Year <= 2015)    # Filter to the latest year that we have flow data
+         Year <= 2015,    # Filter to the latest year that we have flow data
+         !is.na(Area_Sampled)) %>% 
+  ungroup()
+
+# Make a dataframe of the COMIDs and years when sampling happened
+# SampleYears <- SE_Sample_Final %>% 
+#   filter(SiteID %in% BKT_Sites$SiteID) %>%  # Filter to sites with records of BKT
+#   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+#   mutate(Year = year(Date)) %>% 
+#   dplyr::select(COMID, Year, Source) %>% 
+#   unique() %>% 
+#   filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with area and coordinates
+#          !is.na(COMID),
+#          Year >= 1981, # Filter to one year after the earliest year that we have temperature data
+#          Year <= 2015)  # Filter to the latest year that we have flow data
 
 # What was the percentage of single- vs multipass electrofishing?
 passes_pcts.table <- SE_Sample_Final %>% 
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
-  filter(COMID %in% sample_areas$COMID,  # Filter because we can only use data from COMIDs with area and coordinates
-         !is.na(NumPasses)) %>%
+  mutate(Year = year(Date)) %>% # create a year column
+  inner_join(sample_areas) %>%  # use an inner join to filter for only segment-source-year combos that have areas
+  filter(!is.na(NumPasses)) %>%
   mutate(Multipass = ifelse(NumPasses > 1, 1, 0)) %>% 
   group_by(Multipass) %>% 
   summarise(Count = n()) %>% 
@@ -91,34 +107,28 @@ passes_pcts.table <- SE_Sample_Final %>%
 YOY_BKT_passCounts <- SE_Ind_Final %>% 
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
-  filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with all the covariates
-         Year %in% sample_areas$Year) %>% # Filter to the latest year that we have flow data
+  right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
   group_by(COMID,
            Year,
            Source) %>% 
-  summarise(P1_Count_YOY_BKT = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 1), # Filter here for YOY BKT
-            P2_Count_YOY_BKT = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 2),
-            P3_Count_YOY_BKT = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 3)) %>% 
-  .[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
+  summarise(P1_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 1), # Filter here for YOY BKT
+            P2_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 2),
+            P3_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 3)) %>% 
+  ungroup()
+  #.[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
 
 
-      # what's the proportion of segments that have mutiple sites in them?
+      # what's the proportion of segments that have multiple sites in them?
       sites_in_segments <- SE_Ind_Final %>% 
         left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
         mutate(Year = year(Date)) %>% 
-        filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with all the covariates
-               Year %in% sample_areas$Year) %>% # Filter to the latest year that we have flow data
+        right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
         group_by(COMID,
                  Year) %>% 
         summarise(nSites = length(unique(SiteID)))
       
       summary(sites_in_segments$nSites)
       sum(sites_in_segments$nSites > 1)/nrow(sites_in_segments)
-
-# Join sample years where YOY BKT were collected to all sample years
-  # This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had not fish
-YOY_BKT_passCounts_SampleYears <- SampleYears %>% 
-  left_join(YOY_BKT_passCounts)
 
 # Matt Kulp sent a file that includes a list of sites where exotic salmonids were removed and BKT were stocked to restore the stream.
 # We don't want
@@ -128,130 +138,114 @@ GSMNP_Restored_Sites <- GSMNP_Restored_Sites %>%
   filter(!Kulp_Notes == "")
 
 # see if those restored sites overlap with what we're about to run the synchrony analysis on
-YOY_BKT_passCounts_SampleYears %>% 
+YOY_BKT_passCounts%>% 
   filter(COMID %in% GSMNP_Restored_Sites$COMID) %>% 
   distinct(COMID)
-# 3 of the restored sites are in the dataset. Filter them out
-YOY_BKT_passCounts_SampleYears <- YOY_BKT_passCounts_SampleYears %>% 
+# 2 of the restored sites are in the dataset. Filter them out
+YOY_BKT_passCounts <- YOY_BKT_passCounts %>%
   filter(!COMID %in% GSMNP_Restored_Sites$COMID)
 
 # YOY abundance data for model
 # Now make a separate, wide data frame for each pass
-p1_YOY <- YOY_BKT_passCounts_SampleYears %>% 
-  dplyr::select(-P2_Count_YOY_BKT,
-                -P3_Count_YOY_BKT) %>% 
+p1_YOY <- YOY_BKT_passCounts %>% 
+  dplyr::select(-P2_Count_YOY,
+                -P3_Count_YOY) %>%
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
-              values_from = P1_Count_YOY_BKT) %>% 
+              values_from = P1_Count_YOY) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,-1]))) %>%  # count the number of years data at that site and pass
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>%  # count the number of years data at that site and pass
   filter(nYears_data >= 5)
 
 # save a vector of the names of the sources
 sources <- sort(unique(p1_YOY$Source))
 
-# and change the Source column to numeric 
-p1_YOY <- p1_YOY %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% 
-  relocate(COMID, Source, .after = last_col()) # move the info columns to the end of the df to allow subsetting by year in the model
-  #column_to_rownames(var = "COMID")
-
-p2_YOY <- YOY_BKT_passCounts_SampleYears %>% 
-  dplyr::select(-P1_Count_YOY_BKT,
-                -P3_Count_YOY_BKT) %>% 
+p2_YOY <- YOY_BKT_passCounts %>% 
+  dplyr::select(-P1_Count_YOY,
+                -P3_Count_YOY) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
-              values_from = P2_Count_YOY_BKT) %>% 
+              values_from = P2_Count_YOY) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,-1]))) %>% 
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
   filter(nYears_data >= 5) %>% 
   mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
   relocate(COMID, Source, .after = last_col())
-  #column_to_rownames(var = "COMID")
 
-p3_YOY <- YOY_BKT_passCounts_SampleYears %>% 
-  dplyr::select(-P1_Count_YOY_BKT,
-                -P2_Count_YOY_BKT) %>% 
+p3_YOY <- YOY_BKT_passCounts %>% 
+  dplyr::select(-P1_Count_YOY,
+                -P2_Count_YOY) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
-              values_from = P3_Count_YOY_BKT) %>% 
+              values_from = P3_Count_YOY) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,-1]))) %>% 
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
   filter(nYears_data >= 5) %>% 
   mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
   relocate(COMID, Source, .after = last_col())
- #column_to_rownames(var = "COMID")
 
 ## Adults
 # Tally adult counts by pass at each COMID, year combination
 Adult_BKT_passCounts <- SE_Ind_Final %>% 
   left_join(SE_Site_Final[,c("SiteID", "COMID")]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
-  filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with all the covariates
-         Year %in% sample_areas$Year) %>% # Filter to the latest year that we have flow data
+  right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
   group_by(COMID,
            Year,
            Source) %>% 
-  summarise(P1_Count_adult_BKT = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 1), # Filter here for adult BKT
-            P2_Count_adult_BKT = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 2),
-            P3_Count_adult_BKT = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 3)) %>% 
-  .[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
-
-# Join sample years where adult BKT were collected to all sample years
-# This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had not fish
-Adult_BKT_passCounts_SampleYears <- SampleYears %>% 
-  left_join(Adult_BKT_passCounts)
+  summarise(P1_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 1), # Filter here for adult BKT
+            P2_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 2),
+            P3_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 3)) %>% 
+  ungroup()
+  #.[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
 
 # Matt Kulp sent a file that includes a list of sites where exotic salmonids were removed and BKT were stocked to restore the stream.
 # Obviously we don't want
 # see if those restored sites overlap with what we're about to run the synchrony analysis on
-Adult_BKT_passCounts_SampleYears %>% 
+Adult_BKT_passCounts %>% 
   filter(COMID %in% GSMNP_Restored_Sites$COMID) %>% 
   distinct(COMID)
-# 3 of the restored sites are in the dataset. Filter them out
-Adult_BKT_passCounts_SampleYears <- Adult_BKT_passCounts_SampleYears %>% 
+# 2 of the restored sites are in the dataset. Filter them out
+Adult_BKT_passCounts<- Adult_BKT_passCounts %>% 
   filter(!COMID %in% GSMNP_Restored_Sites$COMID)
 
 # adult abundance data for model
 # Now make a separate, wide data frame for each pass
-p1_adult <- Adult_BKT_passCounts_SampleYears %>% 
-  dplyr::select(-P2_Count_adult_BKT,
-                -P3_Count_adult_BKT) %>% 
+p1_adult <- Adult_BKT_passCounts %>% 
+  dplyr::select(-P2_Count_adult,
+                -P3_Count_adult) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
-              values_from = P1_Count_adult_BKT) %>% 
+              values_from = P1_Count_adult) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,-1]))) %>%  # count the number of years data at that site and pass
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>%  # count the number of years data at that site and pass
   filter(nYears_data >= 5) %>% 
   mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
   relocate(COMID, Source, .after = last_col())
-  #column_to_rownames(var = "COMID")
 
-p2_adult <- Adult_BKT_passCounts_SampleYears %>% 
-  dplyr::select(-P1_Count_adult_BKT,
-                -P3_Count_adult_BKT) %>% 
+p2_adult <- Adult_BKT_passCounts %>% 
+  dplyr::select(-P1_Count_adult,
+                -P3_Count_adult) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
-              values_from = P2_Count_adult_BKT) %>% 
+              values_from = P2_Count_adult) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,-1]))) %>% 
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
   filter(nYears_data >= 5) %>% 
   mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
   relocate(COMID, Source, .after = last_col())
-  #column_to_rownames(var = "COMID")
 
-p3_adult <- Adult_BKT_passCounts_SampleYears %>% 
-  dplyr::select(-P1_Count_adult_BKT,
-                -P2_Count_adult_BKT) %>% 
+p3_adult <- Adult_BKT_passCounts %>% 
+  dplyr::select(-P1_Count_adult,
+                -P2_Count_adult) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
-              values_from = P3_Count_adult_BKT) %>% 
+              values_from = P3_Count_adult) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,-1]))) %>% 
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
   filter(nYears_data >= 5) %>% 
   mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
   relocate(COMID, Source, .after = last_col())
-  #column_to_rownames(var = "COMID")
 
 ## COVARIATES
 # Make wide dataframes of spatiotemporal covariates
@@ -263,7 +257,7 @@ Mean_Max_Summer_Temp_Scaled <- SE_COMID_temp_covars %>%
                 Year,
                 Mean_Max_Summer_Temp_Scaled) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
-         Year %in% (YOY_BKT_passCounts_SampleYears$Year - 1)) %>% # filter for years which we have trout data, minus one year b/c we are using temp from the prior year
+         Year %in% (YOY_BKT_passCounts$Year - 1)) %>% # filter for years which we have trout data, minus one year b/c we are using temp from the prior year
   pivot_wider(names_from = Year,
               values_from = Mean_Max_Summer_Temp_Scaled) %>% 
   relocate(COMID, .after = last_col())
@@ -280,7 +274,7 @@ Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
                 Year,
                 Max_0.9Q_WinterFlow_Scaled) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
-         Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
+         Year %in% YOY_BKT_passCounts$Year) %>% # filter for years which we have trout data
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_WinterFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
@@ -297,17 +291,17 @@ Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
                 Year,
                 Max_0.9Q_SpringFlow_Scaled) %>% 
   filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
-         Year %in% YOY_BKT_passCounts_SampleYears$Year) %>% # filter for years which we have trout data
+         Year %in% YOY_BKT_passCounts$Year) %>% # filter for years which we have trout data
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_SpringFlow_Scaled) %>% 
   relocate(COMID, .after = last_col())
 
     # Are winter and spring flows correlated?
-    flow_scaled <- SE_COMID_flow_covars %>%
-      group_by(COMID) %>% 
-      mutate(wintFlow_scaled = c(scale(Max_0.9Q_WinterFlow)),
-             sprFlow_scaled = c(scale(Max_0.9Q_SpringFlow)))
-    chart.Correlation(flow_scaled[,6:7], method = "spearman")
+    # flow_scaled <- SE_COMID_flow_covars %>%
+    #   group_by(COMID) %>% 
+    #   mutate(wintFlow_scaled = c(scale(Max_0.9Q_WinterFlow)),
+    #          sprFlow_scaled = c(scale(Max_0.9Q_SpringFlow)))
+    # chart.Correlation(flow_scaled[,6:7], method = "spearman")
     # no - they're not highly correlated. Let's keep spring flow in there.
 
 # use a right join to get duplicates for the COMIDs with multiple sources of data
@@ -322,7 +316,8 @@ sample_areas_wide <- sample_areas %>%
               values_from = Area_Sampled) %>% 
   arrange(COMID) %>% 
   relocate(COMID, .after = last_col()) %>%  # move the info columns to the end of the df to allow subsetting by year in the model
-  right_join(data.frame(COMID = p1_YOY$COMID))
+  right_join(p1_YOY[,c("COMID", "Source")]) %>% # use a right join to filter for areas of the years AND sources where fish were caught
+  dplyr::select(-Source)
 
 # the sample areas cannot have missing values, 
 # so we impute any segment-year that is missing a sample area as the average sample area for that segment.
@@ -335,16 +330,21 @@ for (i in 1:nrow(sample_areas_wide)) {
   print(i)
 }
 
+# and change the Source column to numeric 
+p1_YOY <- p1_YOY %>% 
+  mutate(Source = as.numeric(as.factor(Source))) %>% 
+  relocate(COMID, Source, .after = last_col()) # move the info columns to the end of the df to allow subsetting by year in the model
+
 # Set sample sizes
 nReps <- nrow(p1_YOY)
 nYears <- ncol(p1_YOY) - 3 # subtract 3 b/c the last three columns have info, not counts
 nSources <- length(unique(p1_YOY$Source))
 
 ########################################
-# Specify "full" models (includes all environmental covariates) for YOY and adults
+# two models each for YOY and adults: one with just climate effects and one with just the two random effects
 
-## YOY
-sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags")
+# YOY model with just env. covariates
+sink("Analysis/nMix_JAGS_files/YOY_climateEffects.jags")
 cat("
 model{
   
@@ -360,23 +360,150 @@ model{
   # Betas for environmental covariates (site-specific)
   for (m in 1:3) {
     
-    # mu.beta.cov - mean parameter for beta.covs
-    mu.beta.cov[m] ~ dnorm(0, 0.01)
+    # mu.beta.cov - mean parameter for betas
+    mu.beta[m] ~ dnorm(0, 0.01)
 
-    # tau.beta.cov - precision parameter for beta.covs
-    # sd parameter for tau.beta.covs
-    sd.cov[m] ~ dunif(0, 10)
-    tau.beta.cov[m] <- 1/(sd.cov[m]^2)
-    s2.beta.cov[m] <- sd.cov[m]^2
+    # tau.beta.cov - precision parameter for betas
+    # sd parameter for tau.beta
+    sd.beta[m] ~ dunif(0, 10)
+    tau.beta[m] <- 1/(sd.beta[m]^2)
+    s2.beta[m] <- sd.beta[m]^2
       
     for (i in 1:nReps){
       
-      # beta.cov.i - Site-specific coefficients for mean max summer temp, max 0.9Q winter flow, max 0.9Q spring flow
-      beta.cov[m,i] ~ dnorm(mu.beta.cov[m], tau.beta.cov[m])
+      # beta.i - Site-specific coefficients for mean max summer temp, max 0.9Q winter flow, max 0.9Q spring flow
+      beta[m,i] ~ dnorm(mu.beta[m], tau.beta[m])
       
     }
   }
   
+  ## Detection probability
+  # p.j - detection probability for each source
+  for (j in 1:nSources) {
+      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
+    }
+  
+  ## Process
+  # Full model (all env. covars)
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+    
+      # Data
+      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
+      
+      log(lambda[i,t]) <- alpha[i] + beta[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t]
+    }
+  }
+  
+  
+  ## Observation
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+    # Pass 1
+    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+    # Pass 2
+    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
+    # Pass 3
+    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
+    }
+  }
+  
+  ### Posterior Predictive Check ###
+  # Predict new data
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+      # Pass 1
+      p1_YOY.new[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+    }
+  }
+  
+  # Get means, CVs of data and predicted data
+  mean_p1_YOY <- mean(p1_YOY[,1:nYears])
+  CV_p1_YOY <- sd(p1_YOY[,1:nYears])/mean(p1_YOY[,1:nYears])
+  mean_p1_YOY.new <- mean(p1_YOY.new)
+  CV_p1_YOY.new <- sd(p1_YOY.new)/mean(p1_YOY.new)
+  
+  # Calculate p values
+  pval.mean_p1 <- step(mean_p1_YOY.new - mean_p1_YOY)
+  pval.CV_p1 <- step(CV_p1_YOY.new - CV_p1_YOY)
+}
+", fill = TRUE)
+sink()
+
+# Bundle data
+jags_data <- list(nReps = nReps, 
+                  nYears = nYears,
+                  nSources = nSources,
+                  Area = sample_areas_wide,
+                  Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
+                  Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
+                  Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
+                  p1_YOY = p1_YOY,
+                  p2_YOY = p2_YOY, 
+                  p3_YOY = p3_YOY,
+                  Sources = p1_YOY$Source)
+
+
+# Parameters to save
+jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+
+# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
+N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
+for (i in 1:nReps) {
+  for (t in 1:nYears) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
+                                                rpois(1, lambda = 200),
+                                                (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+                             sd.beta = runif(3, 0, 10),
+                             mu.beta = rnorm(3, -0.5, 0.01),
+                             p = rep(0.5, times = nSources),
+                             N.YOY = N.YOY.inits)
+
+
+# MCMC settings
+ni <- 50000
+nc <- 3
+nb <- 10000
+nt <- 1
+
+set.seed(1234)
+
+# Fit Model
+YOY_climateEffects <- jagsUI::jags(data = jags_data,
+                                   parameters.to.save = jags_params,
+                                   model.file = "Analysis/nMix_JAGS_files/YOY_climateEffects.jags",
+                                   n.chains = nc,
+                                   n.iter = ni,
+                                   n.burnin = nb,
+                                   n.thin = nt,
+                                   parallel = T,
+                                   inits = init_vals)
+
+YOY_climateEffects_params <- MCMCsummary(YOY_climateEffects, HPD = T)
+
+# What was the range of covariate effects on YOY abundance?
+YOY_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "^beta\\[3")) %>% 
+  .[,2] %>% 
+  range()
+
+## YOY model with just random effects
+sink("Analysis/nMix_JAGS_files/YOY_randomEffects.jags")
+cat("
+model{
+  
+  ### Priors ###
+  
+  ## Site fixed effect
+  for (i in 1:nReps){
+    alpha[i] ~ dnorm(0, 0.001)
+  }
   
   ## Random Effects
   # tau.epsilon: precision parameter for epsilon.t
@@ -415,7 +542,7 @@ model{
       # Data
       N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
-      log(lambda[i,t]) <- alpha[i] + beta.cov[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta.cov[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta.cov[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
+      log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
     }
   }
   
@@ -456,13 +583,13 @@ model{
       p1_YOY.new[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
     }
   }
-  
+
   # Get means, CVs of data and predicted data
   mean_p1_YOY <- mean(p1_YOY[,1:nYears])
   CV_p1_YOY <- sd(p1_YOY[,1:nYears])/mean(p1_YOY[,1:nYears])
   mean_p1_YOY.new <- mean(p1_YOY.new)
   CV_p1_YOY.new <- sd(p1_YOY.new)/mean(p1_YOY.new)
-  
+
   # Calculate p values
   pval.mean_p1 <- step(mean_p1_YOY.new - mean_p1_YOY)
   pval.CV_p1 <- step(CV_p1_YOY.new - CV_p1_YOY)
@@ -475,9 +602,6 @@ jags_data <- list(nReps = nReps,
                   nYears = nYears,
                   nSources = nSources,
                   Area = sample_areas_wide,
-                  Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
-                  Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
-                  Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
                   p1_YOY = p1_YOY,
                   p2_YOY = p2_YOY, 
                   p3_YOY = p3_YOY,
@@ -485,23 +609,20 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", 
-                 "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
 for (i in 1:nReps) {
   for (t in 1:nYears) {
     N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
-                               rpois(1, lambda = 200),
-                               (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2)))
+                                                rpois(1, lambda = 200),
+                                                (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2)))
   }
 }
 
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, -0.5, 0.01),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -511,38 +632,31 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 
 
 # MCMC settings
-ni <- 100000
+ni <- 50000
 nc <- 3
-nb <- 25000
+nb <- 10000
 nt <- 1
 
 set.seed(1234)
 
 # Fit Model
-YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
-                                parameters.to.save = jags_params,
-                                model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags",
-                                n.chains = nc,
-                                n.iter = ni,
-                                n.burnin = nb,
-                                n.thin = nt,
-                                parallel = T,
-                                inits = init_vals)
+YOY_randomEffects <- jagsUI::jags(data = jags_data,
+                                  parameters.to.save = jags_params,
+                                  model.file = "Analysis/nMix_JAGS_files/YOY_randomEffects.jags",
+                                  n.chains = nc,
+                                  n.iter = ni,
+                                  n.burnin = nb,
+                                  n.thin = nt,
+                                  parallel = T,
+                                  inits = init_vals)
 
-YOY_BKT_nMix_full_params <- MCMCsummary(YOY_BKT_nMix_full,
-                                        HPD = T)
+YOY_randomEffects_params <- MCMCsummary(YOY_randomEffects, HPD = T)
 
-MCMCtrace(YOY_BKT_nMix_full, params = "beta.cov", pdf = F)
+#MCMCtrace(YOY_randomEffects_params, params = , pdf = F)
 
-# What was the range of covariate effects on YOY abundance?
-YOY_BKT_nMix_full_params %>% 
-  rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "^beta.cov\\[3")) %>% 
-  .[,2] %>% 
-  range()
-
-## Adults
-sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags")
+### Adults
+# Adult model with just env. covariates
+sink("Analysis/nMix_JAGS_files/Adult_climateEffects.jags")
 cat("
 model{
   
@@ -554,64 +668,42 @@ model{
   }
   
   ## Betas/Slopes
-  
+    
   # Betas for environmental covariates (site-specific)
   for (m in 1:3) {
     
-    # mu.beta.cov - mean parameter for beta.covs
-    mu.beta.cov[m] ~ dnorm(0, 0.01)
-    
-    # tau.beta.cov - precision parameter for beta.covs
-    # sd parameter for tau.beta.covs
-    sd.cov[m] ~ dunif(0, 10)
-    tau.beta.cov[m] <- 1/(sd.cov[m]^2)
-    
+    # mu.beta - mean parameter for betas
+    mu.beta[m] ~ dnorm(0, 0.01)
+
+    # tau.beta - precision parameter for betas
+    # sd parameter for tau.betas
+    sd.beta[m] ~ dunif(0, 10)
+    tau.beta[m] <- 1/(sd.beta[m]^2)
+    s2.beta[m] <- sd.beta[m]^2
+      
     for (i in 1:nReps){
       
-      # beta.cov.i - Site-specific coefficients for mean max summer temp, max 0.9Q winter flow, max 0.9Q spring flow
-      beta.cov[m,i] ~ dnorm(mu.beta.cov[m], tau.beta.cov[m])
-    }
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-  
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-  
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-    
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
+      # beta.i - Site-specific coefficients for mean max summer temp, max 0.9Q winter flow, max 0.9Q spring flow
+      beta[m,i] ~ dnorm(mu.beta[m], tau.beta[m])
+      
     }
   }
   
   ## Detection probability
   # p.j - detection probability for each source
   for (j in 1:nSources) {
-    p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
-  }
+      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
+    }
   
   ## Process
   # Full model (all env. covars)
   for (i in 1:nReps) {
     for (t in 1:nYears) {
-      
+    
       # Data
       N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
-      log(lambda[i,t]) <- alpha[i] + beta.cov[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta.cov[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta.cov[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
+      log(lambda[i,t]) <- alpha[i] + beta[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t]
     }
   }
   
@@ -619,31 +711,15 @@ model{
   ## Observation
   for (i in 1:nReps) {
     for (t in 1:nYears) {
-      # Pass 1
-      p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
-      # Pass 2
-      p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
-      # Pass 3
-      p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
+    # Pass 1
+    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+    # Pass 2
+    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
+    # Pass 3
+    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
     }
   }
   
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-  
-  ## ICC
-  for (i in 1:nReps) {
-    ICC.adult[i] <- s2.eps/(s2.eps + s2.gam[i])
-  }
-  mean_ICC.adult <- mean(ICC.adult)
-    
   ### Posterior Predictive Check ###
   # Predict new data
   for (i in 1:nReps) {
@@ -674,34 +750,196 @@ jags_data <- list(nReps = nReps,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
-                  p1_adult = p1_adult, 
+                  p1_adult = p1_adult,
                   p2_adult = p2_adult, 
                   p3_adult = p3_adult,
-                  Sources = p1_YOY$Source)
+                  Sources = p1_adult$Source)
+
 
 # Parameters to save
-jags_params <- c("beta.cov", "tau.beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", 
-                 "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
-# create and populate an array of initial values for N.Adult. Initial values must all be great than or equal to the sum of observed counts
+# create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
 for (i in 1:nReps) {
   for (t in 1:nYears) {
     N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
-                                          rpois(1, lambda = 300),
-                                          (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 1.54)))
+                                                rpois(1, lambda = 200),
+                                                (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2)))
   }
 }
 
 # Set initial values
 init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, -0.5, 0.01),
+                             sd.beta = runif(3, 0, 10),
+                             mu.beta = rnorm(3, -0.5, 0.01),
+                             p = rep(0.5, times = nSources),
+                             N.adult = N.adult.inits)
+
+
+# MCMC settings
+ni <- 50000
+nc <- 3
+nb <- 10000
+nt <- 1
+
+set.seed(1234)
+
+# Fit Model
+Adult_climateEffects <- jagsUI::jags(data = jags_data,
+                                   parameters.to.save = jags_params,
+                                   model.file = "Analysis/nMix_JAGS_files/Adult_climateEffects.jags",
+                                   n.chains = nc,
+                                   n.iter = ni,
+                                   n.burnin = nb,
+                                   n.thin = nt,
+                                   parallel = T,
+                                   inits = init_vals)
+
+Adult_climateEffects_params <- MCMCsummary(Adult_climateEffects, HPD = T)
+
+# What was the range of covariate effects on adult abundance?
+Adult_climateEffects %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "^beta.cov\\[1")) %>% 
+  .[,2] %>% 
+  range()
+
+## Adult model with just random effects
+sink("Analysis/nMix_JAGS_files/Adult_randomEffects.jags")
+cat("
+model{
+  
+  ### Priors ###
+  
+  ## Site fixed effect
+  for (i in 1:nReps){
+    alpha[i] ~ dnorm(0, 0.001)
+  }
+  
+  ## Random Effects
+  # tau.epsilon: precision parameter for epsilon.t
+  sd.eps ~ dunif(0, 10)
+  tau.eps <- 1/(sd.eps^2)
+    
+  # epsilon.t - first order random effect
+  for (t in 1:nYears) { 
+    eps[t] ~ dnorm(0, tau.eps)
+  }
+  
+    
+  # gamma.it - second order random effect
+  for (i in 1:nReps) {
+    
+    # tau.gamma: precision parameter for gamma.it
+    sd.gam[i] ~ dunif(0, 10)
+    tau.gam[i] <- 1/(sd.gam[i]^2)
+    
+    for (t in 1:nYears) {
+      gam[i,t] ~ dnorm(0, tau.gam[i])
+    }
+  }
+  
+  ## Detection probability
+  # p.j - detection probability for each source
+  for (j in 1:nSources) {
+      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
+    }
+  
+  ## Process
+  # Full model (all env. covars)
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+    
+      # Data
+      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
+      
+      log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
+    }
+  }
+  
+  
+  ## Observation
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+    # Pass 1
+    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+    # Pass 2
+    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
+    # Pass 3
+    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
+    }
+  }
+
+  ### Derived quantities ###
+  
+  ## sigma^2.epsilon: random effect 1 variance
+  s2.eps <- 1/tau.eps
+  
+  ## sigma^2gamma: random effect 2 variance
+  for (i in 1:nReps){
+    s2.gam[i] <- 1/tau.gam[i]
+  }
+    
+  ## ICC
+  for (i in 1:nReps) {
+    ICC.adult[i] <- s2.eps/(s2.eps + s2.gam[i])
+  }
+  mean_ICC.adult <- mean(ICC.adult)
+  
+  ### Posterior Predictive Check ###
+  # Predict new data
+  for (i in 1:nReps) {
+    for (t in 1:nYears) {
+      # Pass 1
+      p1_adult.new[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+    }
+  }
+  
+  # Get means, CVs of data and predicted data
+  mean_p1_adult <- mean(p1_adult[,1:nYears])
+  CV_p1_adult <- sd(p1_adult[,1:nYears])/mean(p1_adult[,1:nYears])
+  mean_p1_adult.new <- mean(p1_adult.new)
+  CV_p1_adult.new <- sd(p1_adult.new)/mean(p1_adult.new)
+  
+  # Calculate p values
+  pval.mean_p1 <- step(mean_p1_adult.new - mean_p1_adult)
+  pval.CV_p1 <- step(CV_p1_adult.new - CV_p1_adult)
+}
+", fill = TRUE)
+sink()
+
+# Bundle data
+jags_data <- list(nReps = nReps, 
+                  nYears = nYears,
+                  nSources = nSources,
+                  Area = sample_areas_wide,
+                  p1_adult = p1_adult,
+                  p2_adult = p2_adult, 
+                  p3_adult = p3_adult,
+                  Sources = p1_adult$Source)
+
+
+# Parameters to save
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+
+# create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
+N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
+for (i in 1:nReps) {
+  for (t in 1:nYears) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
+                                                rpois(1, lambda = 200),
+                                                (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
                              gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.65, times = nSources),
+                             p = rep(0.5, times = nSources),
                              N.adult = N.adult.inits)
 
 
@@ -714,18 +952,20 @@ nt <- 1
 set.seed(1234)
 
 # Fit Model
-Adult_BKT_nMix_full <- jagsUI::jags(data = jags_data,
-                                        parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
-                                        n.chains = nc,
-                                        n.iter = ni,
-                                        n.burnin = nb,
-                                        n.thin = nt,
-                                        parallel = T,
-                                        inits = init_vals)
+Adult_randomEffects <- jagsUI::jags(data = jags_data,
+                                  parameters.to.save = jags_params,
+                                  model.file = "Analysis/nMix_JAGS_files/Adult_randomEffects.jags",
+                                  n.chains = nc,
+                                  n.iter = ni,
+                                  n.burnin = nb,
+                                  n.thin = nt,
+                                  parallel = T,
+                                  inits = init_vals)
 
-Adult_BKT_nMix_full_params <- MCMCsummary(Adult_BKT_nMix_full,
-                                        HPD = T)
+Adult_randomEffects_params <- MCMCsummary(Adult_randomEffects, HPD = T)
+
+#MCMCtrace(Adult_randomEffects_params, params = , pdf = F)
+
 
 ################################
 # Full Models for north vs south regions of SE US
@@ -795,7 +1035,7 @@ nSources_S <- length(unique(p1_YOY_S$Source))
 ## YOY analysis
 # Models can stay the same, we just subset the data
 
-# NORTH
+# NORTH - climate model
 # Bundle data
 jags_data <- list(nReps = nReps_N, 
                   nYears = nYears,
@@ -811,7 +1051,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY")
+jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -824,27 +1064,22 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
-                             sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_N, 0, 10),
-                             gam = array(rnorm(nReps_N * nYears, 0, 10), dim = c(nReps_N, nYears)),
-                             p = rep(0.5, times = nSources_N),
+init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+                             sd.beta = runif(3, 0, 10),
+                             mu.beta = rnorm(3, -0.5, 0.01),
+                             p = rep(0.5, times = nSources),
                              N.YOY = N.YOY.inits)
 
-
 # MCMC settings
-ni <- 100000
+ni <- 25000
 nc <- 3
-nb <- 50000
+nb <- 10000
 nt <- 1
 
 # Fit Model
-YOY_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
+YOY_climateEffects_N <- jagsUI::jags(data = jags_data,
                                       parameters.to.save = jags_params,
-                                      model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags",
+                                      model.file = "Analysis/nMix_JAGS_files/YOY_climateEffects.jags",
                                       n.chains = nc,
                                       n.iter = ni,
                                       n.burnin = nb,
@@ -852,10 +1087,9 @@ YOY_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
                                       parallel = T,
                                       inits = init_vals)
 
-YOY_BKT_nMix_full_N_params <- MCMCsummary(YOY_BKT_nMix_full_N,
-                                          HPD = T)
+YOY_climateEffects_N_params <- MCMCsummary(YOY_climateEffects_N, HPD = T)
 
-# SOUTH
+# SOUTH - climate model
 # Bundle data
 jags_data <- list(nReps = nReps_S, 
                   nYears = nYears,
@@ -871,7 +1105,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY")
+jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -884,16 +1118,11 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
-                             sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_S, 0, 10),
-                             gam = array(rnorm(nReps_S * nYears, 0, 10), dim = c(nReps_S, nYears)),
-                             p = rep(0.5, times = nSources_S),
+init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+                             sd.beta = runif(3, 0, 10),
+                             mu.beta = rnorm(3, -0.5, 0.01),
+                             p = rep(0.5, times = nSources),
                              N.YOY = N.YOY.inits)
-
 
 # MCMC settings
 ni <- 100000
@@ -902,9 +1131,9 @@ nb <- 50000
 nt <- 1
 
 # Fit Model
-YOY_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
+YOY_climateEffects_S <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/YOY_climateEffects.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -912,13 +1141,12 @@ YOY_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-YOY_BKT_nMix_full_S_params <- MCMCsummary(YOY_BKT_nMix_full_S,
-                                          HPD = T)
+YOY_climateEffects_S_params <- MCMCsummary(YOY_climateEffects_S, HPD = T)
 
 ## Adult analysis
 # Models can stay the same, we just subset the data
 
-# NORTH
+# NORTH - climate model
 # Bundle data
 jags_data <- list(nReps = nReps_N, 
                   nYears = nYears,
@@ -934,7 +1162,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult")
+jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -947,27 +1175,22 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
-                             sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_N, 0, 10),
-                             gam = array(rnorm(nReps_N * nYears, 0, 10), dim = c(nReps_N, nYears)),
-                             p = rep(0.5, times = nSources_N),
+init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+                             sd.beta = runif(3, 0, 10),
+                             mu.beta = rnorm(3, -0.5, 0.01),
+                             p = rep(0.5, times = nSources),
                              N.adult = N.adult.inits)
 
-
 # MCMC settings
-ni <- 100000
+ni <- 25000
 nc <- 3
-nb <- 50000
+nb <- 10000
 nt <- 1
 
 # Fit Model
-Adult_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
+Adult_climateEffects_N <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/Adult_climateEffects.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -975,10 +1198,9 @@ Adult_BKT_nMix_full_N <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-Adult_BKT_nMix_full_N_params <- MCMCsummary(Adult_BKT_nMix_full_N,
-                                      HPD = T)
+Adult_climateEffects_N_params <- MCMCsummary(Adult_climateEffects_N,  HPD = T)
 
-# SOUTH
+# SOUTH - climate model
 # Bundle data
 jags_data <- list(nReps = nReps_S, 
                   nYears = nYears,
@@ -994,7 +1216,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult")
+jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -1007,27 +1229,21 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
-                             sd.cov = runif(3, 0, 10),
-                             mu.beta.cov = rnorm(3, 0, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_S, 0, 10),
-                             gam = array(rnorm(nReps_S * nYears, 0, 10), dim = c(nReps_S, nYears)),
-                             p = rep(0.5, times = nSources_S),
+init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+                             sd.beta = runif(3, 0, 10),
+                             mu.beta = rnorm(3, -0.5, 0.01),
+                             p = rep(0.5, times = nSources),
                              N.adult = N.adult.inits)
-
-
 # MCMC settings
-ni <- 100000
+ni <- 25000
 nc <- 3
-nb <- 50000
+nb <- 10000
 nt <- 1
 
 # Fit Model
-Adult_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
+Adult_climateEffects_S <- jagsUI::jags(data = jags_data,
                                         parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_full.jags",
+                                        model.file = "Analysis/nMix_JAGS_files/Adult_climateEffects.jags",
                                         n.chains = nc,
                                         n.iter = ni,
                                         n.burnin = nb,
@@ -1035,1170 +1251,8 @@ Adult_BKT_nMix_full_S <- jagsUI::jags(data = jags_data,
                                         parallel = T,
                                         inits = init_vals)
 
-Adult_BKT_nMix_full_S_params <- MCMCsummary(Adult_BKT_nMix_full_S,
-                                       HPD = T)
-################################
-# Partial model with just summer temperature as environmental covariate
-## YOY
-sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSummTemp.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-  ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
+Adult_climateEffects_S_params <- MCMCsummary(Adult_climateEffects_S,  HPD = T)
 
-  # Beta for summer temperature (site-specific)
-  
-  # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(-0.5, 0.01)
-  
-  # tau.beta.cov - precision parameter for beta.covs
-  # sd parameter for tau.beta.covs
-  sd.cov ~ dunif(0, 10)
-  tau.beta.cov <- 1/(sd.cov^2)
-    
-  for (i in 1:nReps){
-    # beta.cov.i - Site-specific coefficient for mean max summer temp
-    beta.cov[i] ~ dnorm(mu.beta.cov, tau.beta.cov)
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
-    }
-  
-  ## Process
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Mean_Max_Summer_Temp_Scaled[i,t] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
-    # Pass 2
-    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
-    # Pass 3
-    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
-                  p1_YOY = p1_YOY,
-                  p2_YOY = p2_YOY, 
-                  p3_YOY = p3_YOY,
-                  Sources = p1_YOY$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
-                                          rpois(1, lambda = 200),
-                                          (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.YOY = N.YOY.inits)
-
-# Fit Model
-YOY_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
-                                        parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSummTemp.jags",
-                                        n.chains = nc,
-                                        n.iter = ni,
-                                        n.burnin = nb,
-                                        n.thin = nt,
-                                        parallel = T,
-                                        inits = init_vals)
-
-YOY_BKT_nMix_partialSummTemp_params <- MCMCsummary(YOY_BKT_nMix_partialSummTemp,
-                                            HPD = T)
-
-## Adult
-sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSummTemp.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-  ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-
-  # Beta for summer temperature (site-specific)
-  
-  # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(-0.5, 0.01)
-  
-  # tau.beta.cov - precision parameter for beta.covs
-  # sd parameter for tau.beta.covs
-  sd.cov ~ dunif(0, 10)
-  tau.beta.cov <- 1/(sd.cov^2)
-    
-  for (i in 1:nReps){
-    # beta.cov.i - Site-specific coefficient for mean max summer temp
-    beta.cov[i] ~ dnorm(mu.beta.cov, tau.beta.cov)
-  }
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
-    }
-  
-  ## Process
-  # Full model (all env. covars)
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Mean_Max_Summer_Temp_Scaled[i,t] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
-    # Pass 2
-    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
-    # Pass 3
-    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
-                  p1_adult = p1_adult,
-                  p2_adult = p2_adult, 
-                  p3_adult = p3_adult,
-                  Sources = p1_adult$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
-                                          rpois(1, lambda = 200),
-                                          (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.adult = N.adult.inits)
-
-# Fit Model
-Adult_BKT_nMix_partialSummTemp <- jagsUI::jags(data = jags_data,
-                                                   parameters.to.save = jags_params,
-                                                   model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSummTemp.jags",
-                                                   n.chains = nc,
-                                                   n.iter = ni,
-                                                   n.burnin = nb,
-                                                   n.thin = nt,
-                                                   parallel = T,
-                                                   inits = init_vals)
-
-Adult_BKT_nMix_partialSummTemp_params <- MCMCsummary(Adult_BKT_nMix_partialSummTemp,
-                                                     HPD = T)
-
-################################
-# Partial model with just winter flow as environmental covariate
-
-## YOY
-sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialWintFlow.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-    ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-
-  # Beta for summer temperature (site-specific)
-  
-  # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(-0.5, 0.01)
-  
-  # tau.beta.cov - precision parameter for beta.covs
-  # sd parameter for tau.beta.covs
-  sd.cov ~ dunif(0, 10)
-  tau.beta.cov <- 1/(sd.cov^2)
-    
-  for (i in 1:nReps){
-    # beta.cov.i - Site-specific coefficient for mean max summer temp
-    beta.cov[i] ~ dnorm(mu.beta.cov, tau.beta.cov)
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
-  }
-  
-  ## Process
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_WinterFlow_Scaled[i,t] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
-    # Pass 2
-    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
-    # Pass 3
-    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
-                  p1_YOY = p1_YOY,
-                  p2_YOY = p2_YOY, 
-                  p3_YOY = p3_YOY,
-                  Sources = p1_YOY$Source)
-
-
-# Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
-                                          rpois(1, lambda = 200),
-                                          (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.YOY = N.YOY.inits)
-
-# Fit Model
-YOY_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
-                                                   parameters.to.save = jags_params,
-                                                   model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialWintFlow.jags",
-                                                   n.chains = nc,
-                                                   n.iter = ni,
-                                                   n.burnin = nb,
-                                                   n.thin = nt,
-                                                   parallel = T,
-                                                   inits = init_vals)
-
-YOY_BKT_nMix_partialWintFlow_params <- MCMCsummary(YOY_BKT_nMix_partialWintFlow, HPD = T)
-
-# What is the range of winter flow effects on YOY abundance?
-range(MCMCsummary(YOY_BKT_nMix_partialWintFlow, params = "beta.cov", HPD = T)[,1])
-
-## Adult
-sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialWintFlow.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-    ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-
-  # Beta for summer temperature (site-specific)
-  
-  # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(-0.5, 0.01)
-  
-  # tau.beta.cov - precision parameter for beta.covs
-  # sd parameter for tau.beta.covs
-  sd.cov ~ dunif(0, 10)
-  tau.beta.cov <- 1/(sd.cov^2)
-    
-  for (i in 1:nReps){
-    # beta.cov.i - Site-specific coefficient for mean max summer temp
-    beta.cov[i] ~ dnorm(mu.beta.cov, tau.beta.cov)
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
-    }
-  
-  ## Process
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_WinterFlow_Scaled[i,t] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
-    # Pass 2
-    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
-    # Pass 3
-    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
-                  p1_adult = p1_adult, 
-                  p2_adult = p2_adult, 
-                  p3_adult = p3_adult,
-                  Sources = p1_YOY$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
-                                            rpois(1, lambda = 200),
-                                            (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov= runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.adult = N.adult.inits)
-
-# Fit Model
-Adult_BKT_nMix_partialWintFlow <- jagsUI::jags(data = jags_data,
-                                                   parameters.to.save = jags_params,
-                                                   model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialWintFlow.jags",
-                                                   n.chains = nc,
-                                                   n.iter = ni,
-                                                   n.burnin = nb,
-                                                   n.thin = nt,
-                                                   parallel = T,
-                                                   inits = init_vals)
-
-Adult_BKT_nMix_partialWintFlow_params <- MCMCsummary(Adult_BKT_nMix_partialWintFlow, HPD = T)
-
-################################
-# Partial model with just spring flow as environmental covariate
-sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSprFlow.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-    ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-
-  # Beta for summer temperature (site-specific)
-  
-  # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(-0.5, 0.01)
-  
-  # tau.beta.cov - precision parameter for beta.covs
-  # sd parameter for tau.beta.covs
-  sd.cov ~ dunif(0, 10)
-  tau.beta.cov <- 1/(sd.cov^2)
-    
-  for (i in 1:nReps){
-    # beta.cov.i - Site-specific coefficient for mean max summer temp
-    beta.cov[i] ~ dnorm(mu.beta.cov, tau.beta.cov)
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
-    }
-  
-  ## Process
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
-    # Pass 2
-    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
-    # Pass 3
-    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
-                  p1_YOY = p1_YOY, 
-                  p2_YOY = p2_YOY, 
-                  p3_YOY = p3_YOY,
-                  Sources = p1_YOY$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
-                                          rpois(1, lambda = 200),
-                                          (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.YOY = N.YOY.inits)
-
-# Fit Model
-YOY_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
-                                                parameters.to.save = jags_params,
-                                                model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_partialSprFlow.jags",
-                                                n.chains = nc,
-                                                n.iter = ni,
-                                                n.burnin = nb,
-                                                n.thin = nt,
-                                                parallel = T,
-                                                inits = init_vals)
-
-YOY_BKT_nMix_partialSprFlow_params <- MCMCsummary(YOY_BKT_nMix_partialSprFlow,
-                                                  HPD = T)
-
-## Adult
-sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSprFlow.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-    ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-
-  # Beta for summer temperature (site-specific)
-  
-  # mu.beta.cov - mean parameter for beta.covs
-  mu.beta.cov ~ dnorm(-0.5, 0.01)
-  
-  # tau.beta.cov - precision parameter for beta.covs
-  # sd parameter for tau.beta.covs
-  sd.cov ~ dunif(0, 10)
-  tau.beta.cov <- 1/(sd.cov^2)
-    
-  for (i in 1:nReps){
-    # beta.cov.i - Site-specific coefficient for mean max summer temp
-    beta.cov[i] ~ dnorm(mu.beta.cov, tau.beta.cov)
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
-    }
-  
-  ## Process
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + beta.cov[i] * Max_0.9Q_SpringFlow_Scaled[i,t] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
-    # Pass 2
-    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
-    # Pass 3
-    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
-                  p1_adult = p1_adult, 
-                  p2_adult = p2_adult, 
-                  p3_adult = p3_adult,
-                  Sources = p1_YOY$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.Adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
-                                            rpois(1, lambda = 200),
-                                            (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.cov = runif(1, 0, 10),
-                             mu.beta.cov = rnorm(1, -0.5, 0.01),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.adult = N.adult.inits)
-
-# Fit Model
-Adult_BKT_nMix_partialSprFlow <- jagsUI::jags(data = jags_data,
-                                                  parameters.to.save = jags_params,
-                                                  model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_partialSprFlow.jags",
-                                                  n.chains = nc,
-                                                  n.iter = ni,
-                                                  n.burnin = nb,
-                                                  n.thin = nt,
-                                                  parallel = T,
-                                                  inits = init_vals)
-
-Adult_BKT_nMix_partialSprFlow_params <- MCMCsummary(Adult_BKT_nMix_partialSprFlow,
-                                                    HPD = T)
-
-################################
-# Specify "null" model (no environmental covariates)
-sink("Analysis/nMix_JAGS_files/YOY_BKT_nMix_null.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-  ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-  
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-  
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
-    }
-  
-  ## Process
-  # Full model (all env. covars)
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
-    # Pass 2
-    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
-    # Pass 3
-    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  p1_YOY = p1_YOY, 
-                  p2_YOY = p2_YOY, 
-                  p3_YOY = p3_YOY,
-                  Sources = p1_YOY$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
-                                          rpois(1, lambda = 200),
-                                          (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.YOY = N.YOY.inits)
-
-# Fit Model
-YOY_BKT_nMix_null <- jagsUI::jags(data = jags_data,
-                                      parameters.to.save = jags_params,
-                                      model.file = "Analysis/nMix_JAGS_files/YOY_BKT_nMix_null.jags",
-                                      n.chains = nc,
-                                      n.iter = ni,
-                                      n.burnin = nb,
-                                      n.thin = nt,
-                                      parallel = T,
-                                      inits = init_vals)
-
-YOY_BKT_nMix_null_params <- MCMCsummary(YOY_BKT_nMix_null,
-                                        HPD = T)
-
-## Adults
-sink("Analysis/nMix_JAGS_files/Adult_BKT_nMix_null.jags")
-cat("
-model{
-  
-  ### Priors ###
-  
-  ## Site fixed effect
-  for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
-  }
-  
-  ## Random Effects
-  # tau.epsilon: precision parameter for epsilon.t
-  sd.eps ~ dunif(0, 10)
-  tau.eps <- 1/(sd.eps^2)
-    
-  # epsilon.t - first order random effect
-  for (t in 1:nYears) { 
-    eps[t] ~ dnorm(0, tau.eps)
-  }
-    
-  # gamma.it - second order random effect
-  for (i in 1:nReps) {
-  
-    # tau.gamma: precision parameter for gamma.it
-    sd.gam[i] ~ dunif(0, 10)
-    tau.gam[i] <- 1/(sd.gam[i]^2)
-    
-    for (t in 1:nYears) {
-      gam[i,t] ~ dnorm(0, tau.gam[i])
-    }
-  }
-  
-  ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
-      p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
-    }
-  
-  ## Process
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    
-      # Data
-      N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
-      
-      log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
-    }
-  }
-  
-  
-  ## Observation
-  for (i in 1:nReps) {
-    for (t in 1:nYears) {
-    # Pass 1
-    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
-    # Pass 2
-    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
-    # Pass 3
-    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
-    }
-  }
-
-  ### Derived quantities ###
-  
-  ## sigma^2.epsilon: random effect 1 variance
-  s2.eps <- 1/tau.eps
-  
-  ## sigma^2gamma: random effect 2 variance
-  for (i in 1:nReps){
-    s2.gam[i] <- 1/tau.gam[i]
-  }
-}
-", fill = TRUE)
-sink()
-
-# Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  p1_adult = p1_adult, 
-                  p2_adult = p2_adult, 
-                  p3_adult = p3_adult,
-                  Sources = p1_YOY$Source)
-
-# Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam")
-
-# MCMC settings
-ni <- 100000
-nc <- 3
-nb <- 25000
-nt <- 1
-
-# create and populate an array of initial values for N.Adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
-                                            rpois(1, lambda = 200),
-                                            (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2))
-  }
-}
-
-# Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
-                             sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
-                             N.adult = N.adult.inits)
-
-# Fit Model
-Adult_BKT_nMix_null <- jagsUI::jags(data = jags_data,
-                                        parameters.to.save = jags_params,
-                                        model.file = "Analysis/nMix_JAGS_files/Adult_BKT_nMix_null.jags",
-                                        n.chains = nc,
-                                        n.iter = ni,
-                                        n.burnin = nb,
-                                        n.thin = nt,
-                                        parallel = T,
-                                        inits = init_vals)
-
-Adult_BKT_nMix_null_params <- MCMCsummary(Adult_BKT_nMix_null,
-                                          HPD = T)
 
 ######################################
 ### Post-Hoc
@@ -2615,139 +1669,6 @@ YOY_ICC_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="
 YOY_ICC_corrs.table <- as.data.frame(YOY_corrPlot$corrPos) %>% 
   filter(xName == "mean")
 # mean ICC is not really correlated with any of these site-level covars
-
-###########################
-# Calculate C values for all environmental covariates using posterior means from full and null models
-
-# Global C: posterior mean values
-Global_Cs.table <- data.frame(Covariate = c(rep("All", 2),
-                                      rep("Summtemp", 2),
-                                      rep("WintFlow", 2),
-                                      rep("SprFlow", 2)),
-                        Age_Class = rep(c("YOY", "Adult"), 4),
-                        Global_C = c((1 - (YOY_BKT_nMix_full_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (Adult_BKT_nMix_full_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (YOY_BKT_nMix_partialSummTemp_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (Adult_BKT_nMix_partialSummTemp_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (YOY_BKT_nMix_partialWintFlow_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (Adult_BKT_nMix_partialWintFlow_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (YOY_BKT_nMix_partialSprFlow_params['s2.eps',1]/YOY_BKT_nMix_null_params['s2.eps',1])),
-                                     (1 - (Adult_BKT_nMix_partialSprFlow_params['s2.eps',1]/Adult_BKT_nMix_null_params['s2.eps',1]))))
-
-
-
-# Site-specific Cs
-# create an empty array to store the values
-# we use an array here because this essentially adds a third dimension (unique site) to the for() loop above
-Local_Cs.table <- data.frame(C_YOY_allCovs = numeric(),
-                          C_Adult_allCovs = numeric(),
-                          C_YOY_partialSummTemp = numeric(),
-                          C_Adult_partialSummTemp = numeric(),
-                          C_YOY_partialWintFlow = numeric(),
-                          C_Adult_partialWintFlow = numeric(),
-                          C_YOY_partialSprFlow = numeric(),
-                          C_Adult_partialSprFlow = numeric())
-
-
-for (i in 1:nReps){
-  print(i)
-  # Calculate C.gams for the given site
-  Local_Cs.table[i, "C_YOY_allCovs"] <- 1 - (YOY_BKT_nMix_full_params[648 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_Adult_allCovs"] <- 1 - (Adult_BKT_nMix_full_params[648 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_YOY_partialSummTemp"] <- 1 - (YOY_BKT_nMix_partialSummTemp_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_Adult_partialSummTemp"] <- 1 - (Adult_BKT_nMix_partialSummTemp_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_YOY_partialWintFlow"] <- 1 - (YOY_BKT_nMix_partialWintFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_Adult_partialWintFlow"] <- 1 - (Adult_BKT_nMix_partialWintFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_YOY_partialSprFlow"] <- 1 - (YOY_BKT_nMix_partialSprFlow_params[328 + i, 1]/YOY_BKT_nMix_null_params[168 + i, 1])
-  Local_Cs.table[i, "C_Adult_partialSprFlow"] <- 1 - (Adult_BKT_nMix_partialSprFlow_params[328 + i, 1]/Adult_BKT_nMix_null_params[168 + i, 1])
-}
-
-# bind COMIDs to C.gam values
-Local_Cs.table <- data.frame(COMID = segment_data$COMID,
-                     Lat = segment_data$Lat,
-                     Long = segment_data$Long) %>% 
-  cbind(Local_Cs.table)
-
-# Create maps to show posterior means of site-specific C values 
-# all covariates
-C_Val_YOY_allCovs_map <- ggplot() +
-  geom_polygon(data = US_states, 
-               aes(x = long, y = lat, group = group),
-               color = "black", fill = NA) +
-  geom_point(data = Local_Cs.table, 
-             aes(x = Long, y = Lat, color = C_YOY_allCovs), 
-             alpha = 0.5) +
-  coord_map("bonne",
-            lat0 = 40,
-            xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
-  labs(x = "Long",
-       y = "Lat",
-       title = "All Climate Covariates",
-       color = "C Value") +
-  scale_color_viridis_c(limits = c(0,0.8)) +
-  theme_classic()
-
-# summer temp
-C_Val_YOY_SummTemp_map <- ggplot() +
-  geom_polygon(data = US_states, 
-               aes(x = long, y = lat, group = group),
-               color = "black", fill = NA) +
-  geom_point(data = Local_Cs.table, 
-             aes(x = Long, y = Lat, color = C_YOY_partialSummTemp), 
-             alpha = 0.5) +
-  coord_map("bonne",
-            lat0 = 40,
-            xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
-  labs(x = "Long",
-       y = "Lat",
-       title = "Mean 0.9Q Summer Air\n Temperature (Year t-1)",
-       color = "C Value") +
-  scale_color_viridis_c(limits = c(0,0.8)) +
-  theme_classic()
-
-# winter flow
-C_Val_YOY_WintFlow_map <- ggplot() +
-  geom_polygon(data = US_states, 
-               aes(x = long, y = lat, group = group),
-               color = "black", fill = NA) +
-  geom_point(data = Local_Cs.table, 
-             aes(x = Long, y = Lat, color = C_YOY_partialWintFlow), 
-             alpha = 0.5) +
-  coord_map("bonne",
-            lat0 = 40,
-            xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
-  labs(x = "Long",
-       y = "Lat",
-       title = "Max 0.9Q Winter Flow (Year t)",
-       color = "C Value") +
-  scale_color_viridis_c(limits = c(0,0.8)) +
-  theme_classic()
-
-# spring flow
-C_Val_YOY_SprFlow_map <- ggplot() +
-  geom_polygon(data = US_states, 
-               aes(x = long, y = lat, group = group),
-               color = "black", fill = NA) +
-  geom_point(data = Local_Cs.table, 
-             aes(x = Long, y = Lat, color = C_YOY_partialSprFlow), 
-             alpha = 0.5) +
-  coord_map("bonne",
-            lat0 = 40,
-            xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
-  labs(x = "Long",
-       y = "Lat",
-       title = "Max 0.9Q Spring Flow (Year t)",
-       color = "C Value") +
-  scale_color_viridis_c(limits = c(0,0.8)) +
-  theme_classic()
-
-# Combine the three maps into one
-# Compound_C_Vals_map <- grid.arrange(C_Val_YOY_SummTemp_map, C_Val_YOY_WintFlow_map, C_Val_YOY_SprFlow_map,
-#                                     nrow = 1)
 
 
 ################
