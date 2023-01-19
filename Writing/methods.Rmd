@@ -77,18 +77,6 @@ Following @grosbois2009 and @lahoz-monfort2011, we then use posterior samples of
 
 The ICC serves as a measure of the relative synchrony of the local population in segment $i$ relative to the population as a whole. Large ICC values indicate that the given subpopulation is synchronous with the larger population, while small ICC values indicate asynchrony. We created semivariograms of YOY and adult ICC values to check for spatial structure. 
 
-The effects of climate covariates on both overall synchrony and segment-specific asynchrony can be calculated by comparing variances from two models: A model with climate covariate(s) and a null model with no climate covariates. Following @grosbois2009 and @lahoz-monfort2011, we calculate $C_\epsilon$ and $C_\gamma$:
+The synchronizing or asynchronizing effects of the climate covariates can be estimated from the variances of the covariate coefficients ($\beta$s). A coefficient with low variance (that is, similar effects on different populations) is one that has a synchronizing effect. A covariate with high variance (differing effects on different populations) is one with an asynchronizing effect. In calculating this variance, some authors have taken the variance of the product of covariate coefficient and the average value of the climate variable across sites at each year [@nakagawa2013; @ghislain2022 (in review)]. We demonstrate that since climate is highly synchronous in space, this additional step is unwarranted in our case.
 
-\begin{equation}
-  C_\epsilon = 1 - \frac{\hat{\sigma}^2_\epsilon(\text{res})}{\hat{\sigma}^2_\epsilon(\text{tot})}\,,
-  (\#eq:C-eps)
-\end{equation}
-
-\begin{equation}
-  C_{\gamma,i} = 1 - \frac{\hat{\sigma}^2_{\gamma,i}(\text{res})}{\hat{\sigma}^2_{\gamma,i}(\text{tot})}\,.
-  (\#eq:C-gam)
-\end{equation}
-
-As proportions, $C_\epsilon$ and $C_\gamma$ should theoretically take on nonnegative values from 0 to 1, however we demonstrate in Appendix X that they can indeed be negative. Small $C_\beta$ values indicate low variance explained by the climate variables, while large $C_\beta$ values indicate more variance explained by the climate variables.
-
-We fit a total of fourteen models: One full model and one null model each for YOY and adults, as well as one partial model per covariate each for YOY and adults. These models fit to all stream segments are hereafter the “regional” models. We further fit a full model each for YOY and adults in the northern and southern halves of the study region, hereafter the “subregional” models. We implemented our models utilizing Markov Chain Monte Carlo (MCMC) sampling using JAGS with the 'jagsUI' package in R [@kellner2021]. We provide code in Appendix \@ref(code-for-n-mixture-model). After a burn-in period of 25,000 samples (50,000 for subregional models), three chains were run until 100,000 iterations were reached. To evaluate the performance of our models, we completed posterior predictive checks for  mean and coefficient of variation. We report posterior means as point estimates and 95% highest posterior density credible intervals as estimates of uncertainty.
+We fit a total of six models: One model each for YOY and adults at the regional scale fit to all stream segments (hereafter the “regional” models), as well as one model each for YOY and adults in the northern and southern halves of the study region, hereafter the “subregional” models. We implemented our models utilizing Markov Chain Monte Carlo (MCMC) sampling using JAGS with the 'jagsUI' package in R [@kellner2021]. We provide code in Appendix \@ref(code-for-n-mixture-model). After a burn-in period of 25,000 samples (50,000 for subregional models), three chains were run until 100,000 iterations were reached. To evaluate the performance of our models, we completed posterior predictive checks for  mean and coefficient of variation. We report posterior means as point estimates and 95% highest posterior density credible intervals as estimates of uncertainty.

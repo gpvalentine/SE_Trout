@@ -8,6 +8,13 @@ output: bookdown::pdf_document2
 \renewcommand{\thefigure}{A\arabic{figure}}
 \setcounter{figure}{0}
 
+```{r sources-table}
+kable(sources.table,
+      col.names = c("Agency", "Date Range", "# Years Data"),
+      caption = "Data availability by agency.")
+```
+
+
 ## Simulation for Missing Data in Correlogram Analysis
 A simulation study was undertaken to evaluate the feasibility of interpreting correlograms creating using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly Brook Trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
 
@@ -79,19 +86,31 @@ Comparing the four simulations, we see that the 95% confidence interval grows wh
 
 \newpage
 
-```{r compound-corrgram-BKT-plot, fig.cap="Spline correlogram of log brook trout density by lide stage and subregion."}
-compound_corrgram_BKT.plot
-```
-
-\newpage
-
 ```{r detect-probs, fig.cap = "Capture probability by data source"}
 Detect_probs.plot
 ```
 
 \newpage
 
-```{r YOY-ICC-semivariogram-plot, fig.cap="Semivariogram of YOY ICC values. Shading indicates 95% confidence intervals. Dotted lines represent average correlation."}
+```{r YOY-climate-effects-map, fig.cap="Stream segment-specific climate effects on brook trout young-of-year abundance (model $\bf{\beta}_i$s). a) average 90th percentile summer temperature in the preceding year, b) maximum 90th percentile winter flow in the current year, and c) maximum 90th percentile spring flow in the current year."}
+YOY_climate_effects_map.plot
+```
+
+\newpage
+
+```{r YOY-climate-effects-semivariogram-plot, fig.cap = "Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout. Climate variables include a) average 90th percentile summer temperature in the preceding year, b) maximum 90th percentile winter flow in the current year, and c) maximum 90th percentile spring flow in the current year."}
+YOY_climate_effects_semivariogram.plot
+```
+
+\newpage
+
+```{r YOY-betas-corrPlot-plot, fig.cap="Correlations between segment-specific climate effects on YOY log density (betas) and segment geography."}
+#knitr::include_graphics("../Results/v1.0/YOY_betas_corrPlot.plot.jpeg")
+```
+
+\newpage
+
+```{r YOY-ICC-semivariogram-plot, fig.cap="Semivariogram depicting spatial structure in stream segment-specific intraclass corrrelation coefficients of abundance of young-of-year brook trout."}
 YOY_ICCs_semivariogram.plot
 ```
 

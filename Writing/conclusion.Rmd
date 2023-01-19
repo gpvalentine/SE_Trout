@@ -3,7 +3,6 @@ title: ''
 output: pdf_document
 ---
 
-# Conclusion
-
+Knowledge of the contributions of local climate to population synchrony and asynchrony is of great value to ecologists. Equally valuable is knowledge of how local conditions may interact with these broad-scale drivers in cross-scale interactions to create resilience in the face of disturbance.
 * Our approach also pioneers the use of biotic data (specifically time series data) to identify potential climate refugia. By identifying populations that are resilient to environmental stressors that otherwise cause declines, we can demonstrate refugia that “work”.
 * Asynchronous populations and the habitat surrounding them are important candidates for conservation measures including land conservation, harvest regulations, and genetic conservation.

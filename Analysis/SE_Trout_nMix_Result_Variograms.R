@@ -37,7 +37,7 @@ ggplot(YOY_ICC_variogram) +
 
 # Semivariogram
 # There will be a warning about co-located data. That's okay because we have multiple ICCs at the same sites (different sources). Same goes for some of the other measurements.
-YOY_ICCs.geo <- as.geodata(YOY_ICCs[,c(9:10, 2)])
+YOY_ICCs.geo <- as.geodata(YOY_ICCs[,c(12:13, 2)])
 dup.coords(YOY_ICCs.geo)
 YOY_ICC_semivariogram <- geoR::variog(YOY_ICCs.geo)
 YOY_ICCs_semivariogram.plot <- ggplot(data = as.data.frame(YOY_ICC_semivariogram[1:2])) +
@@ -74,7 +74,7 @@ ggplot(YOY_Betas_SummTemp_variogram) +
   theme_classic()
 
 # Semivariogram
-YOY_Betas_SummTemp.geo <- as.geodata(YOY_Betas_SummTemp[,c(9:10, 2)])
+YOY_Betas_SummTemp.geo <- as.geodata(YOY_Betas_SummTemp[,c(12:13, 2)])
 YOY_Betas_SummTemp_semivariogram <- geoR::variog(YOY_Betas_SummTemp.geo)
 YOY_SummTempBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_SummTemp_semivariogram[1:2])) +
   geom_point(aes(x = u,
@@ -108,7 +108,7 @@ ggplot(YOY_Betas_WintFlow_variogram) +
   theme_classic()
 
 # Semivariogram
-YOY_Betas_WintFlow.geo <- as.geodata(YOY_Betas_WintFlow[,c(9:10, 2)], coords.col = c(1,2))
+YOY_Betas_WintFlow.geo <- as.geodata(YOY_Betas_WintFlow[,c(12:13, 2)], coords.col = c(1,2))
 dup.coords(YOY_Betas_WintFlow.geo)
 YOY_Betas_WintFlow_semivariogram <- geoR::variog(YOY_Betas_WintFlow.geo)
 YOY_WintFlowBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_WintFlow_semivariogram[1:2])) +
@@ -142,7 +142,7 @@ ggplot(YOY_Betas_SprFlow_variogram) +
   theme_classic()
 
 # Semivariogram
-YOY_Betas_SprFlow.geo <- as.geodata(YOY_Betas_SprFlow[,c(9:10, 2)])
+YOY_Betas_SprFlow.geo <- as.geodata(YOY_Betas_SprFlow[,c(12:13, 2)])
 # use sp.transform
 dup.coords(YOY_Betas_SprFlow.geo)
 YOY_Betas_SprFlow_semivariogram <- geoR::variog(YOY_Betas_SprFlow.geo)
@@ -158,9 +158,9 @@ YOY_SprFlowBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Spr
 YOY_Betas_compound_semivariogram.table <- rbind(as.data.frame(YOY_Betas_SummTemp_semivariogram[1:2]),
                                                 as.data.frame(YOY_Betas_WintFlow_semivariogram[1:2]),
                                                 as.data.frame(YOY_Betas_SprFlow_semivariogram[1:2])) %>% 
-  cbind(rbind(data.frame(covar = rep("Summer Temperature", 14)),
-              data.frame(covar = rep("Winter Flow", 14)),
-              data.frame(covar = rep("Spring Flow", 14))))
+  cbind(rbind(data.frame(covar = rep("Summer Temperature", 13)),
+              data.frame(covar = rep("Winter Flow", 13)),
+              data.frame(covar = rep("Spring Flow", 13))))
 
 # reorder the covariates so that summer temperature plots first
 YOY_Betas_compound_semivariogram.table$covar <- factor(YOY_Betas_compound_semivariogram.table$covar, c("Summer Temperature", "Winter Flow", "Spring Flow"))

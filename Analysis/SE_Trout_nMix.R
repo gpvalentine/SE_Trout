@@ -303,7 +303,12 @@ Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
   relocate(COMID, .after = last_col())
 
     # Are winter and spring flows correlated?
-    chart.Correlation(SE_COMID_flow_covars[,3:4], method = "spearman")
+    flow_scaled <- SE_COMID_flow_covars %>%
+      group_by(COMID) %>% 
+      mutate(wintFlow_scaled = c(scale(Max_0.9Q_WinterFlow)),
+             sprFlow_scaled = c(scale(Max_0.9Q_SpringFlow)))
+    chart.Correlation(flow_scaled[,6:7], method = "spearman")
+    # no - they're not highly correlated. Let's keep spring flow in there.
 
 # use a right join to get duplicates for the COMIDs with multiple sources of data
 Max_0.9Q_SpringFlow_Scaled <- Max_0.9Q_SpringFlow_Scaled %>% 
@@ -356,17 +361,19 @@ model{
   for (m in 1:3) {
     
     # mu.beta.cov - mean parameter for beta.covs
-    mu.beta.cov[m] ~ dnorm(-0.5, 0.01)
-    
+    mu.beta.cov[m] ~ dnorm(0, 0.01)
+
     # tau.beta.cov - precision parameter for beta.covs
     # sd parameter for tau.beta.covs
     sd.cov[m] ~ dunif(0, 10)
     tau.beta.cov[m] <- 1/(sd.cov[m]^2)
+    s2.beta.cov[m] <- sd.cov[m]^2
       
     for (i in 1:nReps){
       
       # beta.cov.i - Site-specific coefficients for mean max summer temp, max 0.9Q winter flow, max 0.9Q spring flow
       beta.cov[m,i] ~ dnorm(mu.beta.cov[m], tau.beta.cov[m])
+      
     }
   }
   
@@ -375,7 +382,6 @@ model{
   # tau.epsilon: precision parameter for epsilon.t
   sd.eps ~ dunif(0, 10)
   tau.eps <- 1/(sd.eps^2)
-  #tau.eps ~ dgamma(2, 2)
     
   # epsilon.t - first order random effect
   for (t in 1:nYears) { 
@@ -385,11 +391,10 @@ model{
     
   # gamma.it - second order random effect
   for (i in 1:nReps) {
-  
+    
     # tau.gamma: precision parameter for gamma.it
     sd.gam[i] ~ dunif(0, 10)
     tau.gam[i] <- 1/(sd.gam[i]^2)
-    #tau.gam[i] ~ dgamma(2, 2)
     
     for (t in 1:nYears) {
       gam[i,t] ~ dnorm(0, tau.gam[i])
@@ -480,7 +485,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", 
+jags_params <- c("beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", 
                  "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
@@ -511,6 +516,8 @@ nc <- 3
 nb <- 25000
 nt <- 1
 
+set.seed(1234)
+
 # Fit Model
 YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
                                 parameters.to.save = jags_params,
@@ -525,12 +532,12 @@ YOY_BKT_nMix_full <- jagsUI::jags(data = jags_data,
 YOY_BKT_nMix_full_params <- MCMCsummary(YOY_BKT_nMix_full,
                                         HPD = T)
 
-MCMCtrace(YOY_BKT_nMix_full, params = "mu.beta.cov", pdf = F)
+MCMCtrace(YOY_BKT_nMix_full, params = "beta.cov", pdf = F)
 
-# What was the range of winter flow effects on YOY abundance?
+# What was the range of covariate effects on YOY abundance?
 YOY_BKT_nMix_full_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[2")) %>% 
+  filter(str_detect(param, "^beta.cov\\[3")) %>% 
   .[,2] %>% 
   range()
 
@@ -552,7 +559,7 @@ model{
   for (m in 1:3) {
     
     # mu.beta.cov - mean parameter for beta.covs
-    mu.beta.cov[m] ~ dnorm(-0.5, 0.01)
+    mu.beta.cov[m] ~ dnorm(0, 0.01)
     
     # tau.beta.cov - precision parameter for beta.covs
     # sd parameter for tau.beta.covs
@@ -673,7 +680,7 @@ jags_data <- list(nReps = nReps,
                   Sources = p1_YOY$Source)
 
 # Parameters to save
-jags_params <- c("alpha", "beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", 
+jags_params <- c("beta.cov", "tau.beta.cov", "mu.beta.cov", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", 
                  "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.Adult. Initial values must all be great than or equal to the sum of observed counts
@@ -703,6 +710,8 @@ ni <- 100000
 nc <- 3
 nb <- 25000
 nt <- 1
+
+set.seed(1234)
 
 # Fit Model
 Adult_BKT_nMix_full <- jagsUI::jags(data = jags_data,
@@ -2590,11 +2599,18 @@ NHDplus_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology P
 NHDplus_data <- NHDplus_data %>% 
   filter(COMID %in% segment_data$COMID)
 
-ICC_corr_data <- YOY_ICCs.table[,c(2,8)] %>% 
-  left_join(SE_Site_Final, by = "COMID") %>% 
-  left_join(NHDplus_data)
+# load streamcat data
+StreamCat_Data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/StreamCat Data/StreamCat_Covars_Combined.csv")
+# and filter to our sites
+StreamCat_Data <- StreamCat_Data %>% 
+  filter(COMID %in% segment_data$COMID)
 
-YOY_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
+ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>% 
+  left_join(SE_Site_Final, by = "COMID") %>% 
+  left_join(NHDplus_data) %>% 
+  left_join(StreamCat_Data)
+
+YOY_ICC_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
 # get values
 YOY_ICC_corrs.table <- as.data.frame(YOY_corrPlot$corrPos) %>% 
   filter(xName == "mean")
@@ -2741,65 +2757,67 @@ C_Val_YOY_SprFlow_map <- ggplot() +
 mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
                                                              as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,2]),
                                                              as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,3])),
-                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                                                        "Max 0.9Q Winter Flow (Year t)",
-                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                          covar = rep(c("Summer Air Temperature",
+                                                        "Winter Flow",
+                                                        "Spring Flow"),
                                                       each = length(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1])),
                                           life_stage = rep("YOY"),
                                           subregion = rep("N+S")),
                                data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
                                                              as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,2]),
                                                              as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,3])),
-                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                                                        "Max 0.9Q Winter Flow (Year t)",
-                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                          covar = rep(c("Summer Air Temperature",
+                                                        "Winter Flow",
+                                                        "Spring Flow"),
                                                       each = length(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,1])),
                                           life_stage = rep("Adult"),
                                           subregion = rep("N+S")),
                                data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,1]),
                                                              as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,2]),
                                                              as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,3])),
-                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                                                        "Max 0.9Q Winter Flow (Year t)",
-                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                          covar = rep(c("Summer Air Temperature",
+                                                        "Winter Flow",
+                                                        "Spring Flow"),
                                                       each = length(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,1])),
                                           life_stage = rep("YOY"),
                                           subregion = rep("N")),
                                data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,1]),
                                                              as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,2]),
                                                              as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,3])),
-                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                                                        "Max 0.9Q Winter Flow (Year t)",
-                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                          covar = rep(c("Summer Air Temperature",
+                                                        "Winter Flow",
+                                                        "Spring Flow"),
                                                       each = length(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,1])),
                                           life_stage = rep("Adult"),
                                           subregion = rep("N")),
                                data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,1]),
                                                              as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,2]),
                                                              as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,3])),
-                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                                                        "Max 0.9Q Winter Flow (Year t)",
-                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                          covar = rep(c("Summer Air Temperature",
+                                                        "Winter Flow",
+                                                        "Spring Flow"),
                                                       each = length(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,1])),
                                           life_stage = rep("YOY"),
                                           subregion = rep("S")),
                                data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,1]),
                                                              as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,2]),
                                                              as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,3])),
-                                          covar = rep(c("Mean 0.9Q Summer Air Temperature (Year t-1)",
-                                                        "Max 0.9Q Winter Flow (Year t)",
-                                                        "Max 0.9Q Spring Flow (Year t)"),
+                                          covar = rep(c("Summer Air Temperature",
+                                                        "Winter Flow",
+                                                        "Spring Flow"),
                                                       each = length(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,1])),
                                           life_stage = rep("Adult"),
                                           subregion = rep("S")))
 
-# Reorder the subregions so the the N+S region plots first
+# Reorder the subregions so the N+S region plots first
 mu.beta_samples.table$subregion <- factor(mu.beta_samples.table$subregion, c("N+S", "N", "S"))
+# Reorder the covariates so that summer temperature plots first
+mu.beta_samples.table$covar <- factor(mu.beta_samples.table$covar, c("Summer Air Temperature", "Winter Flow", "Spring Flow"))
 
 # plot
 cov_effects.plot <- ggplot(mu.beta_samples.table) +
   geom_violin(aes(x = sample_val,
-                  y = covar,
+                  y = fct_rev(covar),
                   fill = fct_rev(subregion)),
               trim = F,
               alpha = 0.75,
@@ -2835,12 +2853,34 @@ YOY_climate_effects.table <- rbind(YOY_BKT_nMix_full_params %>%
 # reorder the covariates so that summer temperature plots first
 YOY_climate_effects.table$covar <- factor(YOY_climate_effects.table$covar, c("Summer Temperature", "Winter Flow", "Spring Flow"))
 
-YOY_climate_effects_map.plot <- ggplot() +
-  geom_polygon(data = US_states, 
+library(latex2exp)
+
+# YOY_climate_effects_map.plot <- ggplot() +
+#   geom_polygon(data = US_states, 
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = YOY_climate_effects.table, 
+#              aes(x = Long, y = Lat, color = mean), 
+#              alpha = 0.5) +
+#   coord_map("bonne",
+#             lat0 = 40,
+#             xlim = c(-85, -76),
+#             ylim = c(34.5, 40)) +
+#   labs(x = "Long",
+#        y = "Lat",
+#        color = TeX(r'($\beta$ Value)')) +
+#   scale_color_viridis_c() +
+#   theme_classic() +
+#   facet_grid(. ~ covar)
+
+
+
+YOY_SummTemp_betas.plot <- ggplot() +
+  geom_polygon(data = US_states,
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = YOY_climate_effects.table, 
-             aes(x = Long, y = Lat, color = mean), 
+  geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
+             aes(x = Long, y = Lat, color = mean),
              alpha = 0.5) +
   coord_map("bonne",
             lat0 = 40,
@@ -2848,14 +2888,92 @@ YOY_climate_effects_map.plot <- ggplot() +
             ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       color = TeX(r'($\beta$ Value)')) +
+       color = TeX(r'($\beta$ Value)'),
+       title = "a)") +
   scale_color_viridis_c() +
-  theme_classic() +
-  facet_grid(. ~ covar)
+  theme_classic()
+
+YOY_WintFlow_betas.plot <- ggplot() +
+  geom_polygon(data = US_states,
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Winter Flow",],
+             aes(x = Long, y = Lat, color = mean),
+             alpha = 0.5) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
+  labs(x = "Long",
+       y = "Lat",
+       color = TeX(r'($\beta$ Value)'),
+       title = "b)") +
+  scale_color_viridis_c() +
+  theme_classic()
+
+YOY_SprFlow_betas.plot <- ggplot() +
+  geom_polygon(data = US_states,
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Spring Flow",],
+             aes(x = Long, y = Lat, color = mean),
+             alpha = 0.5) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40)) +
+  labs(x = "Long",
+       y = "Lat",
+       color = TeX(r'($\beta$ Value)'),
+       title = "c)") +
+  scale_color_viridis_c() +
+  theme_classic()
+
+YOY_climate_effects_map.plot <- grid.arrange(YOY_SummTemp_betas.plot,
+                                             YOY_WintFlow_betas.plot,
+                                             YOY_SprFlow_betas.plot)
+
+####
+# plots of first-pass trout count versus each climate covariate where each segment = each line
+count_vs_climate_data <- pivot_longer(Mean_Max_Summer_Temp_Scaled, cols = 1:34, names_to = "Year", values_to = "SummTemp") %>% 
+  left_join(pivot_longer(Max_0.9Q_WinterFlow_Scaled, cols = 1:34, names_to = "Year", values_to = "WintFlow")) %>%
+  left_join(pivot_longer(Max_0.9Q_SpringFlow_Scaled, cols = 1:34, names_to = "Year", values_to = "SprFlow")) %>% 
+  left_join(pivot_longer(p1_YOY, cols = 1:34, names_to = "Year", values_to = "count_YOY"))
+
+count_vs_SummTemp.plot <- ggplot(count_vs_climate_data) +
+  geom_line(aes(x = SummTemp,
+                y = log(count_YOY),
+                group = COMID)) +
+  theme_classic()
+
+count_vs_WintFlow.plot <- ggplot(count_vs_climate_data) +
+  geom_line(aes(x = WintFlow,
+                y = log(count_YOY),
+                group = COMID)) +
+  #lims(x = c(-1,0)) +
+  theme_classic()
+
+count_vs_SprFlow.plot <- ggplot(count_vs_climate_data) +
+  geom_line(aes(x = SprFlow,
+                y = count_YOY,
+                group = COMID)) +
+  theme_classic()
+
 
 ####
 # are covariate effects (betas) correlated geographically?
 chart.Correlation(pivot_wider(YOY_climate_effects.table, names_from = covar, values_from = mean)[,5:10], method = "spearman")
+
+beta_corr_data <- YOY_climate_effects.table %>% 
+  pivot_wider(names_from = covar, values_from = mean) %>% 
+  left_join(NHDplus_data) %>% 
+  left_join(StreamCat_Data)
+
+YOY_beta_corrPlot <- corrplot(cor(select_if(beta_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
+# get values
+YOY_beta_corrs.table <- as.data.frame(YOY_beta_corrPlot$corrPos) %>% 
+  filter(xName %in% c("Summer Temperature", "Winter Flow", "Spring Flow"))
+# betas are not really correlated with any of these site-level covars
 
 ####
 # What proportion of beta.cov values are significant at 95% HDPIs for YOY?
@@ -2883,6 +3001,28 @@ YOY_sprFlow_betas <- YOY_BKT_nMix_full_params %>%
   filter(str_detect(param, "beta.cov\\[3"))
 
 pct_effects_negative.table[3,2] <- sum(YOY_sprFlow_betas[,"95%_HPDU"] < 0)/nrow(YOY_sprFlow_betas) * 100
+
+####
+# What was the range of covariate effects on YOY abundance?
+cov_effect_ranges.table <- data.frame(Covar = c("Summ Temp", "Wint Flow", "Spr Flow"),
+                                      min_mean = rbind(min(YOY_summTemp_betas$mean),
+                                                  min(YOY_wintFlow_betas$mean),
+                                                  min(YOY_sprFlow_betas$mean)),
+                                      min_95HDPL = rbind(min(YOY_summTemp_betas$`95%_HPDL`),
+                                                         min(YOY_wintFlow_betas$`95%_HPDL`),
+                                                         min(YOY_sprFlow_betas$`95%_HPDL`)),
+                                      min_95HDPU = rbind(min(YOY_summTemp_betas$`95%_HPDU`),
+                                                         min(YOY_wintFlow_betas$`95%_HPDU`),
+                                                         min(YOY_sprFlow_betas$`95%_HPDU`)),
+                                      max_mean = rbind(max(YOY_summTemp_betas$mean),
+                                                  max(YOY_wintFlow_betas$mean),
+                                                  max(YOY_sprFlow_betas$mean)),
+                                      max_95HDPL = rbind(max(YOY_summTemp_betas$`95%_HPDL`),
+                                                         max(YOY_wintFlow_betas$`95%_HPDL`),
+                                                         max(YOY_sprFlow_betas$`95%_HPDL`)),
+                                      max_95HDPU = rbind(max(YOY_summTemp_betas$`95%_HPDU`),
+                                                         max(YOY_wintFlow_betas$`95%_HPDU`),
+                                                         max(YOY_sprFlow_betas$`95%_HPDU`)))
 
 ################
 # Summarize detection probability in table

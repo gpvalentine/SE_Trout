@@ -694,7 +694,7 @@ compound_corrgram_BKT.plot <- ggplot(compound_density_corrgram.data) +
              linetype = "dashed") +
   geom_hline(yintercept = 0) +
   lims(x = c(0, 450),
-       y = c(-0.25, 1)) +
+       y = c(-0.25, 0.5)) +
   theme_classic() +
   labs(x = "Distance Class (km)",
        y = "Correlation") +
@@ -1089,10 +1089,10 @@ SummAirTempObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(SummAirTempObs
 # Create correlogams that combine temperature, flow, AND log BKT density
 
 # uses 4 colors from rcolorbrewer's "dark2" pallete
-colors1 <- c("Max 90th Percentile\nEstimated Monthly Winter Flow" = "#1b9e77",
-             "Mean Max Daily Observed\nSummer Air Temp" = "#d95f02",
-            "Mean Max Daily Observed\nSummer Water Temp" = "#7570b3",
-            "BKT Log Density" = "#e7298a")
+colors1 <- c("Winter Flow" = "#1b9e77",
+             "Air Temp" = "#d95f02",
+            "Water Temp" = "#7570b3",
+            "BKT Density" = "#e7298a")
 
 compound_corrgram1.plot <- ggplot() +
   # log BKT density (both age classes)
@@ -1145,17 +1145,17 @@ compound_corrgram1.plot <- ggplot() +
   scale_fill_manual(values = colors1)
 
 
-colors2 <- c("Mean Estimated Monthly\nWinter Flow" = "#1b9e77",
-             "Mean Daily Observed\nSummer Air Temp" = "#d95f02",
-             "Mean Daily Observed\nSummer Water Temp" = "#e6ab02",
-             "Total Observed Monthly\nWinter Precip" = "#7570b3",
-             "Log YOY BKT Density" = "#e7298a",
-             "Log Adult BKT Density" = "#66a61e")
+colors2 <- c("Winter Flow" = "#1b9e77",
+             "Summer Air Temp" = "#d95f02",
+             "Summer Water Temp" = "#e6ab02",
+             "Winter Precip" = "#7570b3",
+             "YOY BKT Density" = "#e7298a",
+             "Adult BKT Density" = "#66a61e")
 
 compound_corrgram2.plot <- ggplot() +
   # Winter Flow
   geom_ribbon(data = Flow.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Estimated Monthly\nWinter Flow"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Winter Flow"),
               alpha = 0.5) +
   geom_line(data = Flow.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1165,7 +1165,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # Winter precip
   geom_ribbon(data = WinterPrecipObs.COMID.corr.boot.df,
-            aes(x = x, ymin = ymin, ymax = ymax, fill = "Total Observed Monthly\nWinter Precip"),
+            aes(x = x, ymin = ymin, ymax = ymax, fill = "Winter Precip"),
             alpha = 0.5) +
   geom_line(data = WinterPrecipObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1175,7 +1175,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # Summer Water Temp
   geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Daily Observed\nSummer Water Temp"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Summer Water Temp"),
               alpha = 0.5) +
   geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1185,17 +1185,17 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # Summer Air Temp
   geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Daily Observed\nSummer Air Temp"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Summer Air Temp"),
               alpha = 0.5) +
   geom_line(data = SummAirTempObs.COMID.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = SummAirTempObs.COMID.corr$real$cbar,
              linetype = "dashed",
              color = "#d95f02",
-             alpha = 0.5) +
+              alpha = 0.5) +
   # log YOY density
   geom_ribbon(data = YOY_BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Log YOY BKT Density"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "YOY BKT Density"),
               alpha = 0.5) +
   geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1205,7 +1205,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # log adult density
   geom_ribbon(data = Adult_BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Log Adult BKT Density"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Adult BKT Density"),
               alpha = 0.5) +
   geom_line(data = Adult_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1220,7 +1220,16 @@ compound_corrgram2.plot <- ggplot() +
   labs(x = "Pairwise Distance (km)",
        y = "Correlation",
        fill = "Legend") +
-  scale_fill_manual(values = colors2)
+  scale_fill_manual(values = colors2) +
+  theme(legend.title=element_blank())
+
+# Save to SDAFS 2023 folder for presentation
+# ggsave("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/SDAFS 2023 Presentation/Compound_Corrgram3.jpeg",
+#        plot = compound_corrgram2.plot,
+#        width = 7,
+#        height = 5.25,
+#        units = "in",
+#        dpi = 300)
 
 #####################################
 # Create a table of covariate summaries
