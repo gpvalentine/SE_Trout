@@ -466,9 +466,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 
 
 # MCMC settings
-ni <- 50000
+ni <- 25000
 nc <- 3
-nb <- 10000
+nb <- 5000
 nt <- 1
 
 set.seed(1234)
@@ -632,9 +632,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 
 
 # MCMC settings
-ni <- 50000
+ni <- 25000
 nc <- 3
-nb <- 10000
+nb <- 5000
 nt <- 1
 
 set.seed(1234)
@@ -778,9 +778,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 
 
 # MCMC settings
-ni <- 50000
+ni <- 25000
 nc <- 3
-nb <- 10000
+nb <- 5000
 nt <- 1
 
 set.seed(1234)
@@ -921,7 +921,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -944,9 +944,9 @@ init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
 
 
 # MCMC settings
-ni <- 100000
+ni <- 50000
 nc <- 3
-nb <- 25000
+nb <- 20000
 nt <- 1
 
 set.seed(1234)
@@ -964,7 +964,7 @@ Adult_randomEffects <- jagsUI::jags(data = jags_data,
 
 Adult_randomEffects_params <- MCMCsummary(Adult_randomEffects, HPD = T)
 
-#MCMCtrace(Adult_randomEffects_params, params = , pdf = F)
+MCMCtrace(Adult_randomEffects, params = "alpha", pdf = F)
 
 
 ################################
@@ -1064,16 +1064,16 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources),
+                             p = rep(0.5, times = nSources_N),
                              N.YOY = N.YOY.inits)
 
 # MCMC settings
 ni <- 25000
 nc <- 3
-nb <- 10000
+nb <- 5000
 nt <- 1
 
 # Fit Model
@@ -1088,6 +1088,59 @@ YOY_climateEffects_N <- jagsUI::jags(data = jags_data,
                                       inits = init_vals)
 
 YOY_climateEffects_N_params <- MCMCsummary(YOY_climateEffects_N, HPD = T)
+
+# NORTH - random effects model
+# Bundle data
+jags_data <- list(nReps = nReps_N, 
+                  nYears = nYears,
+                  nSources = nSources_N,
+                  Area = sample_areas_wide_N,
+                  p1_YOY = p1_YOY_N,
+                  p2_YOY = p2_YOY_N, 
+                  p3_YOY = p3_YOY_N,
+                  Sources = as.numeric(as.factor(p1_YOY_N$Source)))
+
+
+# Parameters to save
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+
+# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
+N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
+for (i in 1:nReps_N) {
+  for (t in 1:nYears) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY_N[i,t] + p2_YOY_N[i,t] + p3_YOY_N[i,t])),
+                                                rpois(1, lambda = 200),
+                                                (p1_YOY_N[i,t] + p2_YOY_N[i,t] + p3_YOY_N[i,t] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
+                             sd.eps = runif(1, 0, 10),
+                             eps = rnorm(nYears, 0, 10),
+                             sd.gam = runif(nReps_N, 0, 10),
+                             gam = array(rnorm(nReps_N * nYears, 0, 10), dim = c(nReps_N, nYears)),
+                             p = rep(0.5, times = nSources_N),
+                             N.YOY = N.YOY.inits)
+
+# MCMC settings
+ni <- 50000
+nc <- 3
+nb <- 20000
+nt <- 1
+
+# Fit Model
+YOY_randomEffects_N <- jagsUI::jags(data = jags_data,
+                                     parameters.to.save = jags_params,
+                                     model.file = "Analysis/nMix_JAGS_files/YOY_randomEffects.jags",
+                                     n.chains = nc,
+                                     n.iter = ni,
+                                     n.burnin = nb,
+                                     n.thin = nt,
+                                     parallel = T,
+                                     inits = init_vals)
+
+YOY_randomEffects_N_params <- MCMCsummary(YOY_randomEffects_N, HPD = T)
 
 # SOUTH - climate model
 # Bundle data
@@ -1118,16 +1171,16 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources),
+                             p = rep(0.5, times = nSources_S),
                              N.YOY = N.YOY.inits)
 
 # MCMC settings
-ni <- 100000
+ni <- 25000
 nc <- 3
-nb <- 50000
+nb <- 5000
 nt <- 1
 
 # Fit Model
@@ -1142,6 +1195,59 @@ YOY_climateEffects_S <- jagsUI::jags(data = jags_data,
                                         inits = init_vals)
 
 YOY_climateEffects_S_params <- MCMCsummary(YOY_climateEffects_S, HPD = T)
+
+# SOUTH - random effects model
+# Bundle data
+jags_data <- list(nReps = nReps_S, 
+                  nYears = nYears,
+                  nSources = nSources_S,
+                  Area = sample_areas_wide_S,
+                  p1_YOY = p1_YOY_S,
+                  p2_YOY = p2_YOY_S, 
+                  p3_YOY = p3_YOY_S,
+                  Sources = as.numeric(as.factor(p1_YOY_S$Source)))
+
+
+# Parameters to save
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+
+# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
+N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
+for (i in 1:nReps_S) {
+  for (t in 1:nYears) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY_S[i,t] + p2_YOY_S[i,t] + p3_YOY_S[i,t])),
+                                                rpois(1, lambda = 200),
+                                                (p1_YOY_S[i,t] + p2_YOY_S[i,t] + p3_YOY_S[i,t] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
+                             sd.eps = runif(1, 0, 10),
+                             eps = rnorm(nYears, 0, 10),
+                             sd.gam = runif(nReps_S, 0, 10),
+                             gam = array(rnorm(nReps_S * nYears, 0, 10), dim = c(nReps_S, nYears)),
+                             p = rep(0.5, times = nSources_S),
+                             N.YOY = N.YOY.inits)
+
+# MCMC settings
+ni <- 50000
+nc <- 3
+nb <- 20000
+nt <- 1
+
+# Fit Model
+YOY_randomEffects_S <- jagsUI::jags(data = jags_data,
+                                    parameters.to.save = jags_params,
+                                    model.file = "Analysis/nMix_JAGS_files/YOY_randomEffects.jags",
+                                    n.chains = nc,
+                                    n.iter = ni,
+                                    n.burnin = nb,
+                                    n.thin = nt,
+                                    parallel = T,
+                                    inits = init_vals)
+
+YOY_randomEffects_S_params <- MCMCsummary(YOY_randomEffects_S, HPD = T)
 
 ## Adult analysis
 # Models can stay the same, we just subset the data
@@ -1175,16 +1281,16 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources),
+                             p = rep(0.5, times = nSources_N),
                              N.adult = N.adult.inits)
 
 # MCMC settings
 ni <- 25000
 nc <- 3
-nb <- 10000
+nb <- 5000
 nt <- 1
 
 # Fit Model
@@ -1199,6 +1305,59 @@ Adult_climateEffects_N <- jagsUI::jags(data = jags_data,
                                         inits = init_vals)
 
 Adult_climateEffects_N_params <- MCMCsummary(Adult_climateEffects_N,  HPD = T)
+
+# NORTH - random effects model
+# Bundle data
+jags_data <- list(nReps = nReps_N, 
+                  nYears = nYears,
+                  nSources = nSources_N,
+                  Area = sample_areas_wide_N,
+                  p1_adult = p1_adult_N,
+                  p2_adult = p2_adult_N, 
+                  p3_adult = p3_adult_N,
+                  Sources = as.numeric(as.factor(p1_adult_N$Source)))
+
+
+# Parameters to save
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
+
+# create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
+N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
+for (i in 1:nReps_N) {
+  for (t in 1:nYears) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult_N[i,t] + p2_adult_N[i,t] + p3_adult_N[i,t])),
+                                                rpois(1, lambda = 200),
+                                                (p1_adult_N[i,t] + p2_adult_N[i,t] + p3_adult_N[i,t] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
+                             sd.eps = runif(1, 0, 10),
+                             eps = rnorm(nYears, 0, 10),
+                             sd.gam = runif(nReps_N, 0, 10),
+                             gam = array(rnorm(nReps_N * nYears, 0, 10), dim = c(nReps_N, nYears)),
+                             p = rep(0.5, times = nSources_N),
+                             N.adult = N.adult.inits)
+
+# MCMC settings
+ni <- 50000
+nc <- 3
+nb <- 20000
+nt <- 1
+
+# Fit Model
+Adult_randomEffects_N <- jagsUI::jags(data = jags_data,
+                                    parameters.to.save = jags_params,
+                                    model.file = "Analysis/nMix_JAGS_files/Adult_randomEffects.jags",
+                                    n.chains = nc,
+                                    n.iter = ni,
+                                    n.burnin = nb,
+                                    n.thin = nt,
+                                    parallel = T,
+                                    inits = init_vals)
+
+Adult_randomEffects_N_params <- MCMCsummary(Adult_randomEffects_N, HPD = T)
 
 # SOUTH - climate model
 # Bundle data
@@ -1229,15 +1388,15 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources),
+                             p = rep(0.5, times = nSources_S),
                              N.adult = N.adult.inits)
 # MCMC settings
 ni <- 25000
 nc <- 3
-nb <- 10000
+nb <- 5000
 nt <- 1
 
 # Fit Model
@@ -1252,6 +1411,61 @@ Adult_climateEffects_S <- jagsUI::jags(data = jags_data,
                                         inits = init_vals)
 
 Adult_climateEffects_S_params <- MCMCsummary(Adult_climateEffects_S,  HPD = T)
+
+# NORTH - random effects model
+# Bundle data
+jags_data <- list(nReps = nReps_S, 
+                  nYears = nYears,
+                  nSources = nSources_S,
+                  Area = sample_areas_wide_S,
+                  p1_adult = p1_adult_S,
+                  p2_adult = p2_adult_S, 
+                  p3_adult = p3_adult_S,
+                  Sources = as.numeric(as.factor(p1_adult_S$Source)))
+
+
+# Parameters to save
+jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
+
+# create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
+N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
+for (i in 1:nReps_S) {
+  for (t in 1:nYears) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult_S[i,t] + p2_adult_S[i,t] + p3_adult_S[i,t])),
+                                                  rpois(1, lambda = 200),
+                                                  (p1_adult_S[i,t] + p2_adult_S[i,t] + p3_adult_S[i,t] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
+                             sd.eps = runif(1, 0, 10),
+                             eps = rnorm(nYears, 0, 10),
+                             sd.gam = runif(nReps_S, 0, 10),
+                             gam = array(rnorm(nReps_S * nYears, 0, 10), dim = c(nReps_S, nYears)),
+                             p = rep(0.5, times = nSources_S),
+                             N.adult = N.adult.inits)
+
+# MCMC settings
+ni <- 50000
+nc <- 3
+nb <- 20000
+nt <- 1
+
+# Fit Model
+Adult_randomEffects_S <- jagsUI::jags(data = jags_data,
+                                      parameters.to.save = jags_params,
+                                      model.file = "Analysis/nMix_JAGS_files/Adult_randomEffects.jags",
+                                      n.chains = nc,
+                                      n.iter = ni,
+                                      n.burnin = nb,
+                                      n.thin = nt,
+                                      parallel = T,
+                                      inits = init_vals)
+
+Adult_randomEffects_S_params <- MCMCsummary(Adult_randomEffects_S, HPD = T)
+
+MCMCtrace(Adult_randomEffects_S, params = "alpha", pdf = F)
 
 
 ######################################
@@ -1470,51 +1684,64 @@ SSR_2.plot <- stock_recruit_data %>%
 ###################
 # PPC p-values
 
-YOY_full_PPCs <- YOY_BKT_nMix_full_params %>% 
+YOY_climateEffects_PPCs <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
   dplyr::select(mean)
 
-Adult_full_PPCs <- Adult_BKT_nMix_full_params %>% 
+YOY_randomEffects_PPCs <- YOY_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
   dplyr::select(mean)
 
-PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 2),
-                                             rep("Adult", 2)),
-                              stat = rep(c("mean", "CV"), 2),
-                              pVal = rbind(YOY_full_PPCs,
-                                           Adult_full_PPCs))
+Adult_climateEffects_PPCs <- Adult_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
+  dplyr::select(mean)
+
+Adult_randomEffects_PPCs <- Adult_randomEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
+  dplyr::select(mean)
+
+PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 4),
+                                             rep("Adult", 4)),
+                              stat = rep(c("mean", "CV"), 4),
+                              model = rep(c(rep("climateEffects", 2), rep("randomEffects", 2)), 2),
+                              pVal = rbind(YOY_climateEffects_PPCs,
+                                           YOY_randomEffects_PPCs,
+                                           Adult_climateEffects_PPCs,
+                                           Adult_randomEffects_PPCs))
 
 ###################
 ## ICC Values
 # Join site data to ICC values
-YOY_ICCs.table <- YOY_BKT_nMix_full_params %>% 
+YOY_ICCs.table <- YOY_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.YOY\\[")) %>% 
   cbind(segment_data)
 
-Adult_ICCs.table <- Adult_BKT_nMix_full_params %>% 
+Adult_ICCs.table <- Adult_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.adult\\[")) %>% 
   cbind(segment_data)
 
-YOY_ICCs_N.table <- YOY_BKT_nMix_full_N_params %>% 
+YOY_ICCs_N.table <- YOY_randomEffects_N_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.YOY\\[")) %>% 
   cbind(segment_data_N)
 
-YOY_ICCs_S.table <- YOY_BKT_nMix_full_S_params %>% 
+YOY_ICCs_S.table <- YOY_randomEffects_S_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.YOY\\[")) %>% 
   cbind(segment_data_S)
 
-Adult_ICCs_N.table <- Adult_BKT_nMix_full_N_params %>% 
+Adult_ICCs_N.table <- Adult_randomEffects_N_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.adult\\[")) %>% 
   cbind(segment_data_N)
 
-Adult_ICCs_S.table <- Adult_BKT_nMix_full_S_params %>% 
+Adult_ICCs_S.table <- Adult_randomEffects_S_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.adult\\[")) %>% 
   cbind(segment_data_S)
@@ -1546,11 +1773,11 @@ YOY_lowestICCs_map.plot <- ggplot() +
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
   geom_point(data = head(arrange(YOY_ICCs_N.table, mean)),
-             aes(x = Long, y = Lat), shape = 5) +
+             aes(x = Long, y = Lat), shape = 5) + # diamonds
   geom_point(data = head(arrange(YOY_ICCs_S.table, mean)),
-             aes(x = Long, y = Lat), shape = 1) +
+             aes(x = Long, y = Lat), shape = 1) + # circles
   geom_point(data = head(arrange(YOY_ICCs.table, mean)), 
-             aes(x = Long, y = Lat), shape = 3) +
+             aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -1675,58 +1902,58 @@ YOY_ICC_corrs.table <- as.data.frame(YOY_corrPlot$corrPos) %>%
 # Covariate effects/betas
 # Summarize covariate effects in table
 # plot data
-mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
-                                                             as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,2]),
-                                                             as.matrix(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,3])),
+mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_climateEffects$sims.list$mu.beta[,1]),
+                                                             as.matrix(YOY_climateEffects$sims.list$mu.beta[,2]),
+                                                             as.matrix(YOY_climateEffects$sims.list$mu.beta[,3])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(YOY_BKT_nMix_full$sims.list$mu.beta.cov[,1])),
+                                                      each = length(YOY_climateEffects$sims.list$mu.beta[,1])),
                                           life_stage = rep("YOY"),
                                           subregion = rep("N+S")),
-                               data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,1]),
-                                                             as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,2]),
-                                                             as.matrix(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,3])),
+                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects$sims.list$mu.beta[,1]),
+                                                             as.matrix(Adult_climateEffects$sims.list$mu.beta[,2]),
+                                                             as.matrix(Adult_climateEffects$sims.list$mu.beta[,3])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(Adult_BKT_nMix_full$sims.list$mu.beta.cov[,1])),
+                                                      each = length(Adult_climateEffects$sims.list$mu.beta[,1])),
                                           life_stage = rep("Adult"),
                                           subregion = rep("N+S")),
-                               data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,1]),
-                                                             as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,2]),
-                                                             as.matrix(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,3])),
+                               data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,1]),
+                                                             as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,2]),
+                                                             as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,3])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(YOY_BKT_nMix_full_N$sims.list$mu.beta.cov[,1])),
+                                                      each = length(YOY_climateEffects_N$sims.list$mu.beta[,1])),
                                           life_stage = rep("YOY"),
                                           subregion = rep("N")),
-                               data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,1]),
-                                                             as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,2]),
-                                                             as.matrix(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,3])),
+                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,1]),
+                                                             as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,2]),
+                                                             as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,3])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(Adult_BKT_nMix_full_N$sims.list$mu.beta.cov[,1])),
+                                                      each = length(Adult_climateEffects_N$sims.list$mu.beta[,1])),
                                           life_stage = rep("Adult"),
                                           subregion = rep("N")),
-                               data.frame(sample_val = rbind(as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,1]),
-                                                             as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,2]),
-                                                             as.matrix(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,3])),
+                               data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,1]),
+                                                             as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,2]),
+                                                             as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,3])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(YOY_BKT_nMix_full_S$sims.list$mu.beta.cov[,1])),
+                                                      each = length(YOY_climateEffects_S$sims.list$mu.beta[,1])),
                                           life_stage = rep("YOY"),
                                           subregion = rep("S")),
-                               data.frame(sample_val = rbind(as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,1]),
-                                                             as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,2]),
-                                                             as.matrix(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,3])),
+                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,1]),
+                                                             as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,2]),
+                                                             as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,3])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(Adult_BKT_nMix_full_S$sims.list$mu.beta.cov[,1])),
+                                                      each = length(Adult_climateEffects_S$sims.list$mu.beta[,1])),
                                           life_stage = rep("Adult"),
                                           subregion = rep("S")))
 
@@ -1754,22 +1981,22 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
 
 # map betas (segment-specific covariate effects) in space
-YOY_climate_effects.table <- rbind(YOY_BKT_nMix_full_params %>% 
+YOY_climate_effects.table <- rbind(YOY_climateEffects_params %>% 
                                      rownames_to_column(., "param") %>% 
-                                     filter(str_detect(param, "beta.cov\\[1,")) %>% 
+                                     filter(str_detect(param, "beta\\[1,")) %>% 
                                      select(mean),
-                                   YOY_BKT_nMix_full_params %>% 
+                                   YOY_climateEffects_params %>% 
                                      rownames_to_column(., "param") %>% 
-                                     filter(str_detect(param, "beta.cov\\[2,")) %>% 
+                                     filter(str_detect(param, "beta\\[2,")) %>% 
                                      select(mean),
-                                   YOY_BKT_nMix_full_params %>% 
+                                   YOY_climateEffects_params %>% 
                                      rownames_to_column(., "param") %>% 
-                                     filter(str_detect(param, "beta.cov\\[3,")) %>% 
+                                     filter(str_detect(param, "beta\\[3,")) %>% 
                                      select(mean)) %>% 
   cbind(segment_data,
-        rbind(data.frame(covar = rep("Summer Temperature", 159)),
-              data.frame(covar = rep("Winter Flow", 159)),
-              data.frame(covar = rep("Spring Flow", 159))))
+        rbind(data.frame(covar = rep("Summer Temperature", 170)),
+              data.frame(covar = rep("Winter Flow", 170)),
+              data.frame(covar = rep("Spring Flow", 170))))
 
 # reorder the covariates so that summer temperature plots first
 YOY_climate_effects.table$covar <- factor(YOY_climate_effects.table$covar, c("Summer Temperature", "Winter Flow", "Spring Flow"))
@@ -1897,29 +2124,29 @@ YOY_beta_corrs.table <- as.data.frame(YOY_beta_corrPlot$corrPos) %>%
 # betas are not really correlated with any of these site-level covars
 
 ####
-# What proportion of beta.cov values are significant at 95% HDPIs for YOY?
+# What proportion of beta values are significant at 95% HDPIs for YOY?
 # Create a table to store these values
 pct_effects_negative.table <- data.frame(Covar = c("Summ Temp", "Wint Flow", "Spr Flow"),
                                    pct_sgn_neg = rep(NA, times = 3))
 
 # Summer temp
-YOY_summTemp_betas <- YOY_BKT_nMix_full_params %>% 
+YOY_summTemp_betas <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[1"))
+  filter(str_detect(param, "beta\\[1"))
 
 pct_effects_negative.table[1,2] <- sum(YOY_summTemp_betas[,"95%_HPDU"] < 0)/nrow(YOY_summTemp_betas) * 100
 
 # Winter Flow
-YOY_wintFlow_betas <- YOY_BKT_nMix_full_params %>% 
+YOY_wintFlow_betas <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[2"))
+  filter(str_detect(param, "beta\\[2"))
 
 pct_effects_negative.table[2,2] <- sum(YOY_wintFlow_betas[,"95%_HPDU"] < 0)/nrow(YOY_wintFlow_betas) * 100
 
 # Spring Flow
-YOY_sprFlow_betas <- YOY_BKT_nMix_full_params %>% 
+YOY_sprFlow_betas <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[3"))
+  filter(str_detect(param, "beta\\[3"))
 
 pct_effects_negative.table[3,2] <- sum(YOY_sprFlow_betas[,"95%_HPDU"] < 0)/nrow(YOY_sprFlow_betas) * 100
 
@@ -1950,11 +2177,11 @@ cov_effect_ranges.table <- data.frame(Covar = c("Summ Temp", "Wint Flow", "Spr F
 
 Detect_probs.table <- data.frame(
   Agency = rep(sources2$Agency, times = 2),
-  Life_Stage = c(rep("YOY", times = 8),
-                rep("Adult", times = 8))) %>% 
+  Life_Stage = c(rep("YOY", times = 9),
+                rep("Adult", times = 9))) %>% 
   # add in jagsUI model summary values
-  cbind(rbind(YOY_BKT_nMix_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),1:4],
-              Adult_BKT_nMix_full_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]"),1:4]))
+  cbind(rbind(YOY_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4],
+              Adult_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4]))
 
 # and make a plot to visualize
 Detect_probs.plot <- ggplot(data = Detect_probs.table) +
@@ -1983,7 +2210,7 @@ Detect_probs.plot <- ggplot(data = Detect_probs.table) +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v1.0")
+run_dir <- here("results", "v2.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]
