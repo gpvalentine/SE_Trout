@@ -101,7 +101,7 @@ passes_pcts.table <- SE_Sample_Final %>%
   summarise(Count = n()) %>% 
   mutate(Percent = Count/sum(Count) * 100) %>% 
   as.data.frame()
-
+  
 ## YOY
 # Tally YOY counts by pass at each COMID, year combination
 YOY_BKT_passCounts <- SE_Ind_Final %>% 
@@ -119,7 +119,7 @@ YOY_BKT_passCounts <- SE_Ind_Final %>%
 
 
       # what's the proportion of segments that have multiple sites in them?
-      sites_in_segments <- SE_Ind_Final %>% 
+      sites_in_segments <- SE_Sample_Final %>% 
         left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
         mutate(Year = year(Date)) %>% 
         right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
@@ -352,7 +352,7 @@ model{
   
   ## Site fixed effect
   for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
+    omega[i] ~ dnorm(0, 0.001)
   }
   
   ## Betas/Slopes
@@ -391,7 +391,7 @@ model{
       # Data
       N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
-      log(lambda[i,t]) <- alpha[i] + beta[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t]
+      log(lambda[i,t]) <- omega[i] + beta[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t]
     }
   }
   
@@ -445,7 +445,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -458,7 +458,7 @@ for (i in 1:nReps) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
                              p = rep(0.5, times = nSources),
@@ -489,7 +489,7 @@ YOY_climateEffects_params <- MCMCsummary(YOY_climateEffects, HPD = T)
 # What was the range of covariate effects on YOY abundance?
 YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "^beta\\[3")) %>% 
+  filter(str_detect(param, "^beta\\[1")) %>% 
   .[,2] %>% 
   range()
 
@@ -502,7 +502,7 @@ model{
   
   ## Site fixed effect
   for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
+    omega[i] ~ dnorm(0, 0.001)
   }
   
   ## Random Effects
@@ -542,7 +542,7 @@ model{
       # Data
       N.YOY[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
-      log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
+      log(lambda[i,t]) <- omega[i] + eps[t] + gam[i,t]
     }
   }
   
@@ -609,7 +609,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -622,7 +622,7 @@ for (i in 1:nReps) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -664,7 +664,7 @@ model{
   
   ## Site fixed effect
   for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
+    omega[i] ~ dnorm(0, 0.001)
   }
   
   ## Betas/Slopes
@@ -703,7 +703,7 @@ model{
       # Data
       N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
-      log(lambda[i,t]) <- alpha[i] + beta[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t]
+      log(lambda[i,t]) <- omega[i] + beta[1,i] * Mean_Max_Summer_Temp_Scaled[i,t] + beta[2,i] * Max_0.9Q_WinterFlow_Scaled[i,t] + beta[3,i] * Max_0.9Q_SpringFlow_Scaled[i,t]
     }
   }
   
@@ -757,7 +757,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -770,7 +770,7 @@ for (i in 1:nReps) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
                              p = rep(0.5, times = nSources),
@@ -799,9 +799,9 @@ Adult_climateEffects <- jagsUI::jags(data = jags_data,
 Adult_climateEffects_params <- MCMCsummary(Adult_climateEffects, HPD = T)
 
 # What was the range of covariate effects on adult abundance?
-Adult_climateEffects %>% 
+Adult_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "^beta.cov\\[1")) %>% 
+  filter(str_detect(param, "^beta\\[3")) %>% 
   .[,2] %>% 
   range()
 
@@ -814,7 +814,7 @@ model{
   
   ## Site fixed effect
   for (i in 1:nReps){
-    alpha[i] ~ dnorm(0, 0.001)
+    omega[i] ~ dnorm(0, 0.001)
   }
   
   ## Random Effects
@@ -854,7 +854,7 @@ model{
       # Data
       N.adult[i,t] ~ dpois((Area[i,t] / 1000) * lambda[i,t])
       
-      log(lambda[i,t]) <- alpha[i] + eps[t] + gam[i,t]
+      log(lambda[i,t]) <- omega[i] + eps[t] + gam[i,t]
     }
   }
   
@@ -921,7 +921,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -934,7 +934,7 @@ for (i in 1:nReps) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps, 0, 10),
@@ -964,7 +964,7 @@ Adult_randomEffects <- jagsUI::jags(data = jags_data,
 
 Adult_randomEffects_params <- MCMCsummary(Adult_randomEffects, HPD = T)
 
-MCMCtrace(Adult_randomEffects, params = "alpha", pdf = F)
+MCMCtrace(Adult_randomEffects, params = "omega", pdf = F)
 
 
 ################################
@@ -1051,7 +1051,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -1064,7 +1064,7 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
                              p = rep(0.5, times = nSources_N),
@@ -1102,7 +1102,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -1115,7 +1115,7 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_N, 0, 10),
@@ -1158,7 +1158,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -1171,7 +1171,7 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
                              p = rep(0.5, times = nSources_S),
@@ -1209,7 +1209,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -1222,7 +1222,7 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_S, 0, 10),
@@ -1268,7 +1268,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -1281,7 +1281,7 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
                              p = rep(0.5, times = nSources_N),
@@ -1319,7 +1319,7 @@ jags_data <- list(nReps = nReps_N,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
@@ -1332,7 +1332,7 @@ for (i in 1:nReps_N) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_N, 0, 10),
@@ -1375,7 +1375,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -1388,7 +1388,7 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
                              p = rep(0.5, times = nSources_S),
@@ -1425,7 +1425,7 @@ jags_data <- list(nReps = nReps_S,
 
 
 # Parameters to save
-jags_params <- c("alpha", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
 N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
@@ -1438,7 +1438,7 @@ for (i in 1:nReps_S) {
 }
 
 # Set initial values
-init_vals <- function() list(alpha = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
                              eps = rnorm(nYears, 0, 10),
                              sd.gam = runif(nReps_S, 0, 10),
@@ -1465,7 +1465,7 @@ Adult_randomEffects_S <- jagsUI::jags(data = jags_data,
 
 Adult_randomEffects_S_params <- MCMCsummary(Adult_randomEffects_S, HPD = T)
 
-MCMCtrace(Adult_randomEffects_S, params = "alpha", pdf = F)
+MCMCtrace(Adult_randomEffects_S, params = "omega", pdf = F)
 
 
 ######################################
@@ -1577,36 +1577,66 @@ SE_segments_N <- SE_segments %>%
 SE_segments_S <- SE_segments %>% 
   filter(COMID %in% S_Sites$COMID)
 
+# Climate covariates
+summTemp_N <- SE_COMID_temp_covars %>% 
+  filter(COMID %in% N_Sites$COMID, # Filter to just data for which we have samples
+         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+summTemp_S <- SE_COMID_temp_covars %>% 
+  filter(COMID %in% S_Sites$COMID, # Filter to just data for which we have samples
+         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+
+streamFlow_N <- SE_COMID_flow_covars %>% 
+  filter(COMID %in% N_Sites$COMID, # Filter to just data for which we have samples
+         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+streamFlow_S <- SE_COMID_flow_covars %>% 
+  filter(COMID %in% S_Sites$COMID, # Filter to just data for which we have samples
+         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+
 Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                                  "Length (km)",
                                                  "Catchment area (km^2)",
                                                  "Elevation (m)",
                                                  "Stream order",
-                                                 "Wetted width (m)"),
+                                                 "Wetted width (m)",
+                                                 "Max Summer\nTemperature (C)",
+                                                 "Max 0.9Q Winter\nStream Flow (CFS)",
+                                                 "Max 0.9Q Spring\nStream Flow (CFS)"),
                                     North_Mean = c(mean(SE_segments_NHDPlus_N$SLOPE, na.rm = T)*100,
                                              mean(SE_segments_NHDPlus_N$LENGTHKM, na.rm = T),
                                              mean(SE_segments_NHDPlus_N$AreaSqKM, na.rm = T),
                                              mean(rowMeans(SE_segments_NHDPlus_N[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
                                              mean(SE_segments_NHDPlus_N$StreamOrde, na.rm = T),
-                                             mean(SE_segments_N$Width_m, na.rm = T)),
+                                             mean(SE_segments_N$Width_m, na.rm = T),
+                                             mean(summTemp_N$Mean_Max_Summer_Temp, na.rm = T),
+                                             mean(streamFlow_N$Max_0.9Q_WinterFlow, na.rm = T),
+                                             mean(streamFlow_N$Max_0.9Q_SpringFlow, na.rm = T)),
                                     North_SD = c(sd(SE_segments_NHDPlus_N$SLOPE, na.rm = T)*100,
                                                 sd(SE_segments_NHDPlus_N$LENGTHKM, na.rm = T),
                                                 sd(SE_segments_NHDPlus_N$AreaSqKM, na.rm = T),
                                                 sd(rowMeans(SE_segments_NHDPlus_N[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
                                                 sd(SE_segments_NHDPlus_N$StreamOrde, na.rm = T),
-                                                sd(SE_segments_N$Width_m, na.rm = T)),
+                                                sd(SE_segments_N$Width_m, na.rm = T),
+                                                sd(summTemp_N$Mean_Max_Summer_Temp, na.rm = T),
+                                                sd(streamFlow_N$Max_0.9Q_WinterFlow, na.rm = T),
+                                                sd(streamFlow_N$Max_0.9Q_SpringFlow, na.rm = T)),
                                     South_Mean = c(mean(SE_segments_NHDPlus_S$SLOPE, na.rm = T)*100,
                                                    mean(SE_segments_NHDPlus_S$LENGTHKM, na.rm = T),
                                                    mean(SE_segments_NHDPlus_S$AreaSqKM, na.rm = T),
                                                    mean(rowMeans(SE_segments_NHDPlus_S[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
                                                    mean(SE_segments_NHDPlus_S$StreamOrde, na.rm = T),
-                                                   mean(SE_segments_S$Width_m, na.rm = T)),
+                                                   mean(SE_segments_S$Width_m, na.rm = T),
+                                                   mean(summTemp_S$Mean_Max_Summer_Temp, na.rm = T),
+                                                   mean(streamFlow_S$Max_0.9Q_WinterFlow, na.rm = T),
+                                                   mean(streamFlow_S$Max_0.9Q_SpringFlow, na.rm = T)),
                                     South_SD = c(sd(SE_segments_NHDPlus_S$SLOPE, na.rm = T)*100,
                                                  sd(SE_segments_NHDPlus_S$LENGTHKM, na.rm = T),
                                                  sd(SE_segments_NHDPlus_S$AreaSqKM, na.rm = T),
                                                  sd(rowMeans(SE_segments_NHDPlus_S[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
                                                  sd(SE_segments_NHDPlus_S$StreamOrde, na.rm = T),
-                                                 sd(SE_segments_S$Width_m, na.rm = T)))
+                                                 sd(SE_segments_S$Width_m, na.rm = T),
+                                                 sd(summTemp_S$Mean_Max_Summer_Temp, na.rm = T),
+                                                 sd(streamFlow_S$Max_0.9Q_WinterFlow, na.rm = T),
+                                                 sd(streamFlow_S$Max_0.9Q_SpringFlow, na.rm = T)))
 
 #####################################
 # Create a table of covariate summaries
@@ -1678,7 +1708,7 @@ SSR_2.plot <- stock_recruit_data %>%
               color = "blue",
               se = FALSE) +
   theme_classic() +
-  labs(x = "Log (mean Adult abundance) in year t",
+  labs(x = "Log (mean adult abundance) in year t",
        y = "Log (mean YOY abundance) in year t+1")
 
 ###################
@@ -1776,7 +1806,7 @@ YOY_lowestICCs_map.plot <- ggplot() +
              aes(x = Long, y = Lat), shape = 5) + # diamonds
   geom_point(data = head(arrange(YOY_ICCs_S.table, mean)),
              aes(x = Long, y = Lat), shape = 1) + # circles
-  geom_point(data = head(arrange(YOY_ICCs.table, mean)), 
+  geom_point(data = head(arrange(YOY_ICCs.table, mean)),
              aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
@@ -1786,7 +1816,7 @@ YOY_lowestICCs_map.plot <- ggplot() +
        y = "Lat",
        #title = "Posterior ICC Means for YOY BKT",
        color = "ICC") +
-  theme_classic() + 
+  theme_classic() +
   theme(text = element_text(family =  "serif"))
 
 Adult_highestICCs_map.plot <- ggplot() +
@@ -1840,6 +1870,8 @@ YOY_ICC_map.plot <- ggplot() +
                color = "black", fill = NA) +
   geom_point(data = YOY_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
+  # geom_point(data = head(arrange(YOY_ICCs.table, mean)),
+  #            aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -1889,14 +1921,31 @@ StreamCat_Data <- StreamCat_Data %>%
 ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>% 
   left_join(SE_Site_Final, by = "COMID") %>% 
   left_join(NHDplus_data) %>% 
-  left_join(StreamCat_Data)
+  left_join(StreamCat_Data) %>% 
+  select(-SiteID,
+         -COMID)
 
 YOY_ICC_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
 # get values
-YOY_ICC_corrs.table <- as.data.frame(YOY_corrPlot$corrPos) %>% 
+YOY_ICC_corrs.table <- as.data.frame(YOY_ICC_corrPlot$corrPos) %>% 
   filter(xName == "mean")
 # mean ICC is not really correlated with any of these site-level covars
+YOY_ICC_corrs.table <- YOY_ICC_corrs.table %>% 
+  arrange(-abs(corr)) %>% 
+  .[2:11,c(2,5)]
 
+####
+# Gap analysis for asynchronous sites
+
+# Load stream segments that are within protected areas
+# These data come from the USGS protected areas database
+PA_StreamSegments <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/SE_Trout/Data/SE_Trout_PA_flowlines.csv")
+
+# % BKT segments with 25% best ICCs in protected areas:
+nrow(YOY_ICCs.table %>% filter(mean < quantile(mean, 0.25), COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% filter(mean < quantile(mean, 0.25))) * 100
+
+# % of top 6 ICCs in protected areas
+nrow(YOY_ICCs.table %>% slice_min(mean, n = 6) %>% filter(COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% slice_min(mean, n = 6)) * 100
 
 ################
 # Covariate effects/betas
@@ -1980,6 +2029,20 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
                     limits = c("N+S", "N", "S")) +
   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
 
+# cov_effects.plot <- ggplot(mu.beta_samples.table %>% filter(subregion == "N+S")) +
+#   geom_violin(aes(x = sample_val,
+#                   y = fct_rev(covar)),
+#               trim = F,
+#               alpha = 0.75,
+#               color = NA,
+#               fill = "#1b9e77") +
+#   facet_grid(life_stage ~ .) +
+#   geom_vline(xintercept = 0, linetype = "dashed", size = 0.5) +
+#   theme_classic() +
+#   labs(x = "Value",
+#        y = element_blank()) +
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
+
 # map betas (segment-specific covariate effects) in space
 YOY_climate_effects.table <- rbind(YOY_climateEffects_params %>% 
                                      rownames_to_column(., "param") %>% 
@@ -2036,10 +2099,10 @@ YOY_SummTemp_betas.plot <- ggplot() +
             ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       color = TeX(r'($\beta$ Value)'),
-       title = "a)") +
+       color = TeX(r'($\beta$ Value)')) +
   scale_color_viridis_c() +
-  theme_classic()
+  theme_classic() 
+  # theme(legend.title = element_text( size=2), legend.text=element_text(size=2))
 
 YOY_WintFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2054,8 +2117,7 @@ YOY_WintFlow_betas.plot <- ggplot() +
             ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       color = TeX(r'($\beta$ Value)'),
-       title = "b)") +
+       color = TeX(r'($\beta$ Value)')) +
   scale_color_viridis_c() +
   theme_classic()
 
@@ -2072,14 +2134,13 @@ YOY_SprFlow_betas.plot <- ggplot() +
             ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       color = TeX(r'($\beta$ Value)'),
-       title = "c)") +
+       color = TeX(r'($\beta$ Value)')) +
   scale_color_viridis_c() +
   theme_classic()
 
 YOY_climate_effects_map.plot <- grid.arrange(YOY_SummTemp_betas.plot,
                                              YOY_WintFlow_betas.plot,
-                                             YOY_SprFlow_betas.plot)
+                                             YOY_SprFlow_betas.plot, nrow = 1)
 
 ####
 # plots of first-pass trout count versus each climate covariate where each segment = each line
@@ -2115,13 +2176,17 @@ chart.Correlation(pivot_wider(YOY_climate_effects.table, names_from = covar, val
 beta_corr_data <- YOY_climate_effects.table %>% 
   pivot_wider(names_from = covar, values_from = mean) %>% 
   left_join(NHDplus_data) %>% 
-  left_join(StreamCat_Data)
+  left_join(StreamCat_Data) %>% 
+  select(-COMID)
 
 YOY_beta_corrPlot <- corrplot(cor(select_if(beta_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
 # get values
 YOY_beta_corrs.table <- as.data.frame(YOY_beta_corrPlot$corrPos) %>% 
   filter(xName %in% c("Summer Temperature", "Winter Flow", "Spring Flow"))
 # betas are not really correlated with any of these site-level covars
+YOY_beta_corrs.table <- YOY_beta_corrs.table %>% 
+  arrange(-abs(corr)) %>% 
+  .[4:13, c(1,2,5)]
 
 ####
 # What proportion of beta values are significant at 95% HDPIs for YOY?
@@ -2150,27 +2215,75 @@ YOY_sprFlow_betas <- YOY_climateEffects_params %>%
 
 pct_effects_negative.table[3,2] <- sum(YOY_sprFlow_betas[,"95%_HPDU"] < 0)/nrow(YOY_sprFlow_betas) * 100
 
+# Summer temp
+Adult_summTemp_betas <- Adult_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta\\[1"))
+# Winter Flow
+Adult_wintFlow_betas <- Adult_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta\\[2"))
+# Spring Flow
+Adult_sprFlow_betas <- Adult_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "beta\\[3"))
+
 ####
 # What was the range of covariate effects on YOY abundance?
-cov_effect_ranges.table <- data.frame(Covar = c("Summ Temp", "Wint Flow", "Spr Flow"),
+cov_effect_ranges.table <- data.frame(Life_Stage = c(rep("YOY", 3), rep("Adult", 3)),
+                                      Covar = rep(c("Summ Temp", "Wint Flow", "Spr Flow"),2),
                                       min_mean = rbind(min(YOY_summTemp_betas$mean),
                                                   min(YOY_wintFlow_betas$mean),
-                                                  min(YOY_sprFlow_betas$mean)),
+                                                  min(YOY_sprFlow_betas$mean),
+                                                  min(Adult_summTemp_betas$mean),
+                                                  min(Adult_wintFlow_betas$mean),
+                                                  min(Adult_sprFlow_betas$mean)),
                                       min_95HDPL = rbind(min(YOY_summTemp_betas$`95%_HPDL`),
                                                          min(YOY_wintFlow_betas$`95%_HPDL`),
-                                                         min(YOY_sprFlow_betas$`95%_HPDL`)),
+                                                         min(YOY_sprFlow_betas$`95%_HPDL`),
+                                                         min(Adult_summTemp_betas$`95%_HPDL`),
+                                                         min(Adult_wintFlow_betas$`95%_HPDL`),
+                                                         min(Adult_sprFlow_betas$`95%_HPDL`)),
                                       min_95HDPU = rbind(min(YOY_summTemp_betas$`95%_HPDU`),
                                                          min(YOY_wintFlow_betas$`95%_HPDU`),
-                                                         min(YOY_sprFlow_betas$`95%_HPDU`)),
+                                                         min(YOY_sprFlow_betas$`95%_HPDU`),
+                                                         min(Adult_summTemp_betas$`95%_HPDU`),
+                                                         min(Adult_wintFlow_betas$`95%_HPDU`),
+                                                         min(Adult_sprFlow_betas$`95%_HPDU`)),
                                       max_mean = rbind(max(YOY_summTemp_betas$mean),
                                                   max(YOY_wintFlow_betas$mean),
-                                                  max(YOY_sprFlow_betas$mean)),
+                                                  max(YOY_sprFlow_betas$mean),
+                                                  max(Adult_summTemp_betas$mean),
+                                                  max(Adult_wintFlow_betas$mean),
+                                                  max(Adult_sprFlow_betas$mean)),
                                       max_95HDPL = rbind(max(YOY_summTemp_betas$`95%_HPDL`),
                                                          max(YOY_wintFlow_betas$`95%_HPDL`),
-                                                         max(YOY_sprFlow_betas$`95%_HPDL`)),
+                                                         max(YOY_sprFlow_betas$`95%_HPDL`),
+                                                         max(Adult_summTemp_betas$`95%_HPDL`),
+                                                         max(Adult_wintFlow_betas$`95%_HPDL`),
+                                                         max(Adult_sprFlow_betas$`95%_HPDL`)),
                                       max_95HDPU = rbind(max(YOY_summTemp_betas$`95%_HPDU`),
                                                          max(YOY_wintFlow_betas$`95%_HPDU`),
-                                                         max(YOY_sprFlow_betas$`95%_HPDU`)))
+                                                         max(YOY_sprFlow_betas$`95%_HPDU`),
+                                                         max(Adult_summTemp_betas$`95%_HPDU`),
+                                                         max(Adult_wintFlow_betas$`95%_HPDU`),
+                                                         max(Adult_sprFlow_betas$`95%_HPDU`))) %>% 
+  mutate(HDP_range = max_95HDPU - min_95HDPL,
+         mean_range = max_mean - min_mean)
+
+# visualize in a plot
+climate_effect_ranges.plot <- ggplot(data = cov_effect_ranges.table) +
+  geom_linerange(aes(y = Covar,
+                     xmin = min_mean,
+                     xmax = max_mean, 
+                     color = Life_Stage),
+                 position = position_dodge(.25),
+                 size = 1) +
+  scale_color_brewer(palette = "Dark2", breaks = c("YOY", "Adult")) +
+  labs(color = "Life Stage",
+    x = "Effect",
+    y = element_blank()) +
+  theme_classic()
 
 ################
 # Summarize detection probability in table
@@ -2183,27 +2296,30 @@ Detect_probs.table <- data.frame(
   cbind(rbind(YOY_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4],
               Adult_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4]))
 
+# reorder life stage factor
+
+
 # and make a plot to visualize
 Detect_probs.plot <- ggplot(data = Detect_probs.table) +
-  geom_linerange(aes(x = Agency,
-                     ymin = `95%_HPDL`, #includes 95% highest density intervals
-                     ymax = `95%_HPDU`,
+  geom_linerange(aes(y = Agency,
+                     xmin = `95%_HPDL`, #includes 95% highest density intervals
+                     xmax = `95%_HPDU`,
                      color = Life_Stage),
                  position = position_dodge(.25),
                  size = 0.5) +
-  geom_point(aes(x = Agency,
-                 y = mean,
+  geom_point(aes(y = Agency,
+                 x = mean,
                  color = Life_Stage),
              position = position_dodge(.25)) +
-  scale_color_brewer(palette = "Dark2") +
+  scale_color_brewer(palette = "Dark2", breaks = c("YOY", "Adult")) +
   labs(#title = "Covariate Effects on Log Density of BKT",
     color = "Life Stage",
     x = element_blank(),
     y = element_blank()) +
-  #scale_x_discrete(labels = function(x) str_wrap(x, width = 5)) +
-  theme_classic() + 
-  theme(text = element_text(family =  "serif"),
-        axis.text.x = element_text(angle = -45, hjust=0))
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 12)) +
+  theme_classic() 
+  # theme(text = element_text(family =  "serif"),
+  #       axis.text.x = element_text(angle = -45, hjust=0))
 
 
 ########################################################

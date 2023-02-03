@@ -194,7 +194,7 @@ BKT.COMID.logDens.synch.plot <- ggplot() +
   geom_line(data = BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = 0) +
-  geom_hline(yintercept = BKT.COMID.logDens.corr$real$cbar,
+  geom_hline(yintercept = BKT_COMID_logDens.corr$real$cbar,
              linetype = "dashed") +
   theme_classic() +
   lims(x = c(0, max(BKT.COMID.logDens.corr.pred.df$x)),
@@ -360,7 +360,7 @@ YOY_BKT.COMID.logDens.synch.plot <- ggplot() +
   geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
   geom_hline(yintercept = 0) +
-  geom_hline(yintercept = YOY_BKT.COMID.logDens.corr$real$cbar,
+  geom_hline(yintercept = YOY_BKT_COMID_logDens.corr$real$cbar,
              linetype = "dashed") +
   theme_classic() +
   lims(x = c(0, max(YOY_BKT.COMID.logDens.corr.pred.df$x)),
@@ -914,16 +914,15 @@ SE_precip_winter_wide <- dcast(data = SE_precip_winter,
                             value.var = "Total_Winter_Precip")
 
 # plot sites
-ggplot() +
+precip_sites_map.plot <- ggplot() +
   geom_polygon(data = states_map, aes(x = long, y = lat, group = group), color = "black", fill = "white") +
   geom_point(data = SE_precip_winter_wide, aes(x = Long, y = Lat)) +
   theme_classic() +
   labs(x = "Longitude", y = "Latitude") + 
   coord_map("bonne",
             lat0 = 40,
-            xlim = c(-84.4, -72),
-            ylim = c(34.5,45)) +
-  theme(text = element_text(size=20))
+            xlim = c(-85, -76),
+            ylim = c(34.5, 40))
 
 # Make a new column with a count of the number of years of nonzero data, and filter out sites that have fewer than five years' of data during this time period
 SE_precip_winter_wide <- SE_precip_winter_wide %>%  
@@ -1101,7 +1100,7 @@ compound_corrgram1.plot <- ggplot() +
               alpha = 0.5) +
   geom_line(data = BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = BKT.COMID.logDens.corr$real$cbar,
+  geom_hline(yintercept = BKT_COMID_logDens.corr$real$cbar,
              linetype = "dashed",
              color = "#e7298a",
              alpha = 0.5) +
@@ -1199,7 +1198,7 @@ compound_corrgram2.plot <- ggplot() +
               alpha = 0.5) +
   geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
-  geom_hline(yintercept = YOY_BKT.COMID.logDens.corr$real$cbar,
+  geom_hline(yintercept = YOY_BKT_COMID_logDens.corr$real$cbar,
              linetype = "dashed",
              color = "#e7298a",
              alpha = 0.5) +
@@ -1261,7 +1260,7 @@ Corrgram_Covar_Summary.table <- data.frame(Covar = c("Mean Estimated Monthly Win
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v1.0")
+run_dir <- here("results", "v2.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

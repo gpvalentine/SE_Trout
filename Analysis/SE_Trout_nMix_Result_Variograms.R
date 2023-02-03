@@ -13,7 +13,7 @@ library(sp)
 
 ## ICC Values
 # Join site data to ICC values
-YOY_ICCs <- YOY_BKT_nMix_full_params %>%
+YOY_ICCs <- YOY_randomEffects_params %>%
   rownames_to_column(., "param") %>%
   filter(str_detect(param, "ICC.YOY\\[")) %>%
   cbind(segment_data)
@@ -50,9 +50,9 @@ YOY_ICCs_semivariogram.plot <- ggplot(data = as.data.frame(YOY_ICC_semivariogram
 
 ## Beta values: Mean Max Summer Temp
 # Join site data to ICC values
-YOY_Betas_SummTemp <- YOY_BKT_nMix_full_params %>% 
+YOY_Betas_SummTemp <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[1,")) %>% # this filters out the beta[1,] parameters
+  filter(str_detect(param, "beta\\[1,")) %>% # this filters out the beta[1,] parameters
   cbind(segment_data)
 
 YOY_Betas_SummTemp.sp <- YOY_Betas_SummTemp
@@ -85,9 +85,9 @@ YOY_SummTempBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Su
 
 ## Beta values: Mean Max Winter Flow
 # Join site data to ICC values
-YOY_Betas_WintFlow <- YOY_BKT_nMix_full_params %>% 
+YOY_Betas_WintFlow <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[2,")) %>% # this filters out the beta[1,] parameters
+  filter(str_detect(param, "beta\\[2,")) %>% # this filters out the beta[1,] parameters
   cbind(segment_data)
 
 YOY_Betas_WintFlow.sp <- YOY_Betas_WintFlow
@@ -120,9 +120,9 @@ YOY_WintFlowBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Wi
 
 ## Beta values: Mean Max Spring Flow
 # Join site data to ICC values
-YOY_Betas_SprFlow <- YOY_BKT_nMix_full_params %>% 
+YOY_Betas_SprFlow <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
-  filter(str_detect(param, "beta.cov\\[3,")) %>% # this filters out the beta[1,] parameters
+  filter(str_detect(param, "beta\\[3,")) %>% # this filters out the beta[1,] parameters
   cbind(segment_data)
 
 YOY_Betas_SprFlow.sp <- YOY_Betas_SprFlow
@@ -134,12 +134,12 @@ YOY_Betas_SprFlow_variogram <- gstat::variogram(data = YOY_Betas_SprFlow.sp,
                                                  object = mean~1)
 
 #plot
-ggplot(YOY_Betas_SprFlow_variogram) +
-  geom_point(aes(x = dist))+
-  labs(x = "Distance Class (km)",
-       y = "Variance",
-       title = "Variogram of YOY SprFlow Betas") +
-  theme_classic()
+# ggplot(YOY_Betas_SprFlow_variogram) +
+#   geom_point(aes(x = dist))+
+#   labs(x = "Distance Class (km)",
+#        y = "Variance",
+#        title = "Variogram of YOY SprFlow Betas") +
+#   theme_classic()
 
 # Semivariogram
 YOY_Betas_SprFlow.geo <- as.geodata(YOY_Betas_SprFlow[,c(12:13, 2)])
@@ -179,7 +179,7 @@ YOY_climate_effects_semivariogram.plot <- ggplot() +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v1.0")
+run_dir <- here("results", "v2.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

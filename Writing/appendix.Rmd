@@ -3,15 +3,19 @@ title: ''
 output: bookdown::pdf_document2
 ---
 
-\renewcommand{\thefigure}{A\arabic{figure}}
+\renewcommand{\thefigure}{S\arabic{figure}}
 \setcounter{figure}{0}
+\renewcommand{\thetable}{S\arabic{table}}
+\setcounter{table}{0}
 
-```{r sources-table}
+```{r sources-table, fig.pos="H"}
 kable(sources.table,
       col.names = c("Agency", "Date Range", "# Years Data"),
-      caption = "Data availability by agency.")
+      caption = "Data availability by agency.") %>%
+  kableExtra::kable_styling(latex_options = "HOLD_position")
 ```
 
+\newpage
 
 ## Simulation for Missing Data in Correlogram Analysis
 A simulation study was undertaken to evaluate the feasibility of interpreting correlograms creating using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly Brook Trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
@@ -84,41 +88,65 @@ Comparing the four simulations, we see that the 95% confidence interval grows wh
 
 \newpage
 
+```{r temp-sites-map, fig.cap="Locations of 204 paired air and water temperature sensors."}
+knitr::include_graphics("../Results/v2.0/NS204_temp_sites_map.jpeg")
+```
+
+\newpage
+
+```{r precip-sites-map, fig.cap="Locations of 51 precipitation measurement sites. Source: NOAA NCEI"}
+precip_sites_map.plot
+```
+
+
 ```{r detect-probs, fig.cap = "Capture probability by data source"}
 Detect_probs.plot
 ```
 
 \newpage
 
-```{r YOY-climate-effects-map, fig.cap="Stream segment-specific climate effects on brook trout young-of-year abundance (model $\bf{\beta}_i$s). a) average 90th percentile summer temperature in the preceding year, b) maximum 90th percentile winter flow in the current year, and c) maximum 90th percentile spring flow in the current year."}
-plot_grid(YOY_SummTemp_betas.plot,
-             YOY_WintFlow_betas.plot,
-             YOY_SprFlow_betas.plot,
-          labels = c("a)", "b)", "c)"),
-          nrow = 1)
+```{r YOY-betas-corrPlot-plot, fig.cap="Spearman correlations between segment-specific climate effects on YOY log density (model $\bf{\beta}_i$s) and segment geography."}
+#knitr::include_graphics("../Results/v2.0/YOY_betas_corrPlot.plot.jpeg")
 ```
 
 \newpage
 
-```{r YOY-climate-effects-semivariogram-plot, fig.cap = "Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout. Climate variables include a) average 90th percentile summer temperature in the preceding year, b) maximum 90th percentile winter flow in the current year, and c) maximum 90th percentile spring flow in the current year."}
+```{r YOY-betas-corr-table}
+kable(YOY_beta_corrs.table,
+      col.names = c("Climate Covariate", "Local Habitat\nVariable", "Spearman Correlation"),
+      caption = "Top ten correlations between model $\\bm{\\beta}_i$s and local habitat.")
+```
+
+\newpage
+
+```{r YOY-climate-effects-semivariogram-plot, fig.cap = "Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout. If spatial strucutre is present, nearer values will have lover semivariance than farther values. Climate variables include a) average 0.9Q summer air temperature (year t-1), b) max 0.9Q winter stream flow (year t), and c) max 0.9Q spring stream flow (year t). DD = Decimal degrees."}
 YOY_climate_effects_semivariogram.plot
 ```
 
 \newpage
 
-```{r YOY-betas-corrPlot-plot, fig.cap="Correlations between segment-specific climate effects on YOY log density (betas) and segment geography."}
-knitr::include_graphics("../Results/v2.0/YOY_betas_corrPlot.plot.jpeg")
+```{r YOY-ICCs-corr-table}
+kable(YOY_ICC_corrs.table,
+      col.names = c("Local Habitat\nVariable", "Spearman Correlation"),
+      caption = "Top ten correlations between ICCs and local habitat.")
 ```
 
 \newpage
 
-```{r YOY-ICC-semivariogram-plot, fig.cap="Semivariogram depicting spatial structure in stream segment-specific intraclass corrrelation coefficients of abundance of young-of-year brook trout."}
+```{r YOY-ICC-semivariogram-plot, fig.cap="Semivariogram depicting spatial structure in stream segment-specific intraclass corrrelation coefficients of abundance of young-of-year brook trout. If spatial strucutre is present, nearer values will have lover semivariance than farther values. DD = Decimal degrees."}
 YOY_ICCs_semivariogram.plot
 ```
 
 \newpage
 
-## Code for N-Mixture Model
+```{r stock-recruitment-plot, fig.cap = "Semivariogram depicting spatial structure in stream segment-specific intraclass corrrelation coefficients of abundance of young-of-year brook trout. If spatial strucutre is present, nearer values will have lover semivariance than farther values. DD = Decimal degrees.", message=FALSE, warning=FALSE}
+plot_grid(SSR_1.plot,
+          SSR_2.plot,
+          labels = c("a)", "b)"),
+          nrow = 1)
+```
+
+\newpage
 
 ```{r nMix_code}
 #knitr::read_chunk(here("Analysis", "SE_Trout_nMix.R"))
