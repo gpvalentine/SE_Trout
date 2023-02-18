@@ -9,10 +9,10 @@ output: bookdown::pdf_document2
 \setcounter{table}{0}
 
 ```{r sources-table, fig.pos="H"}
-kable(sources.table,
+kbl(sources.table,
       col.names = c("Agency", "Date Range", "# Years Data"),
       caption = "Data availability by agency.") %>%
-  kableExtra::kable_styling(latex_options = "HOLD_position")
+  kable_styling(latex_options = "HOLD_position")
 ```
 
 \newpage
@@ -76,74 +76,237 @@ plot75 <- ~plot(fit75)
 m75.summary <- summary(fit75)
 
 ## Make a compound plot
-SimStudy_compound_plot <- plot_grid(plot0, plot25, plot50, plot75,
+SimStudy_compound.plot <- plot_grid(plot0, plot25, plot50, plot75,
                           labels = c("a)", "b)", "c)", "d)"))
 ```
 
 ```{r sim-study-plot, fig.cap="Spline correlogram of a datasets with a) 0%, b) 25%, c) 50%, and d) 75% missingness over 2 years at 100 sites. Grey shading represents 95% confidence interval. Grey line represents mean correlation.", fig.width=8, fig.height=8}
-SimStudy_compound_plot
+SimStudy_compound.plot
 ```
 
 Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 47% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.  
 
 \newpage
 
-```{r temp-sites-map, fig.cap="Locations of 204 paired air and water temperature sensors."}
+## Simulation for Combined Model
+We developed a simulation to evaluate the identifiability of a model with both climate effects and random effects. We simulated 3-pass electrofishing data for 100 stream segments over 20 years, and evaluated with an an N-mixture model using a removal mechanism coupled with a log linear process model. We simulated one spatially heterogeneous climate covariate and both temporal and spatiotemporal random effects. Detection probability was the same for all simulated stream segments.
+
+```{r CombinedModel_Sim, echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(1234)
+
+## settings
+nSites <- 100
+nYears <- 20
+nPasses <- 3
+x <- matrix(rnorm(nSites*nYears), nrow = nSites, ncol = nYears)  # climate cov (mean standardized)
+alpha0 <- runif(nSites, min = 3, max = 4.5)  # site specific intercept
+alpha1 <- rnorm(nSites, mean = -0.3, sd = 0.3)  # spatially heterogeneous climate cov effect
+eps <- rnorm(nYears, mean = 0, sd = 0.4)  # time random effect
+gamma <- matrix(rnorm(nSites*nYears, mean = 0, sd = 0.2), nrow = nSites, ncol = nYears) # time-site random effect
+p <- 0.6  # capture prob per pass
+N <- lam <- array(dim = c(nSites, nYears))
+y <- array(dim = c(nSites, nYears, nPasses))
+
+## simulate abundance
+for (i in 1:nSites){
+  for (t in 1:nYears){
+    lam[i,t] <- exp(alpha0[i] + alpha1[i]*x[i,t] + eps[t] + gamma[i,t])
+    N[i,t] <- rpois(1, lam[i,t])
+  }
+}
+
+## simulate data
+for (i in 1:nSites){
+  for (t in 1:nYears){
+    y[i,t,1] <- rbinom(1, N[i,t], p)
+    y[i,t,2] <- rbinom(1, N[i,t] - y[i,t,1], p)
+    y[i,t,3] <- rbinom(1, N[i,t] - y[i,t,1] - y[i,t,2], p)
+  }
+}
+
+
+# Bundle data
+jags_data <- list(nSites = nSites, 
+                  nYears = nYears,
+                  x = x,
+                  y = y)
+
+
+# Parameters to save
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "sd.beta", "p", "sd.eps", "s2.eps", "sd.gam", "s2.gam")
+
+# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
+N.inits <- array(numeric(), dim = c(nSites, nYears))
+for (i in 1:nSites) {
+  for (t in 1:nYears) {
+    N.inits[i,t] <- round(as.numeric(ifelse(is.na((y[i,t,1] + y[i,t,2] + y[i,t,3])),
+                                                rpois(1, lambda = 200),
+                                                (y[i,t,1] + y[i,t,2] + y[i,t,3] + 1) * 2)))
+  }
+}
+
+# Set initial values
+init_vals <- function() list(omega = runif(nSites, 0, 5),
+                             sd.beta = runif(1, 0, 10),
+                             mu.beta = rnorm(1, -0.5, 0.01),
+                             p = 0.6,
+                             N = N.inits)
+
+
+# MCMC settings
+ni <- 20000
+nc <- 3
+nb <- 5000
+nt <- 1
+
+
+# Fit Model
+nMix_sim <- jagsUI::jags(data = jags_data,
+                                   parameters.to.save = jags_params,
+                                   model.file = here("Analysis/nMix_JAGS_files", "nMix_sim.jags"),
+                                   n.chains = nc,
+                                   n.iter = ni,
+                                   n.burnin = nb,
+                                   n.thin = nt,
+                                   parallel = T,
+                                   inits = init_vals)
+
+# What proportion of the sd.gams include the true value (0.2) in their 95% HPDI?
+nMix_sim_sd.gams <- MCMCsummary(nMix_sim,
+            params = "sd.gam",
+            HPD = T) %>% 
+  mutate(cont_true = ifelse((0.2 >= .[,3] & 0.2 <= .[,4]), TRUE, FALSE))
+
+nrow(nMix_sim_sd.gams[nMix_sim_sd.gams$cont_true == TRUE,])/nrow(nMix_sim_sd.gams) * 100
+
+# Plot posteriors of estimated values vs original values
+sim_plot_data <- data.frame(sample_val = rbind(as.matrix(nMix_sim$sims.list$mu.beta),
+                                               as.matrix(nMix_sim$sims.list$sd.beta),
+                                               as.matrix(nMix_sim$sims.list$sd.eps),
+                                               as.matrix(nMix_sim$sims.list$sd.gam[,1]), # choose the first sd.gam to plot b/c there are 100
+                                               as.matrix(nMix_sim$sims.list$p)),
+                            parameter = rep(c("mu.beta", "sd.beta", "sd.eps", "sd.gam", "p"),
+                                            each = length(nMix_sim$sims.list$mu.beta)))
+
+# specify order of the parameters to plot
+sim_plot_data$parameter <- factor(sim_plot_data$parameter, c("mu.beta", "sd.beta", "sd.eps", "sd.gam", "p"))
+
+hlines <- data.frame(y = c(-0.3, 0.3, 0.4, 0.2, 0.6), # these are the generating values for the dataset
+                     x = c(1,2,3,4,5))
+
+CombinedModel_Sim.plot <- ggplot() + 
+  geom_violin(data = sim_plot_data,
+              aes(x = parameter,
+                  y = sample_val),
+              scale = "width") +
+  geom_segment(data = hlines,
+               aes(x = x - 0.5, xend = x + 0.5,
+                   y = y, yend = y),
+               color = "red",
+               size = 0.8,
+               linetype = "dashed") + 
+  labs(x = "Parameter",
+       y = "Value") +
+  theme_classic()
+```
+
+```{r CombinedModel-Sim-plot, fig.cap= "Simulation results illustrating true parameter values (red dashed lines) and full posterior distributions of parameters generated using a model with a climate covariate and two random effects. Only the first sd.gam was plotted to simplify the visualization, however 93% of sd.gams contain the true parameter value within their 95% HPDI."}
+CombinedModel_Sim.plot
+```
+
+\newpage
+
+(ref:temp-sites-map-cap) Locations of 204 paired air and water temperature sensors. Sites were located in randomly selected subwatersheds identified as capable of supporting populations of brook trout [*Salvelinus fontinalis*, @ebtjv2006]. Located at the downstream outlet of the subwatersheds, at each site a logger underwater was paired with a logger affixed to the bank or a tree. Stream and air temperatures were measured every 30 minutes using remote loggers (Onset Computer Corporation, Bourne, MA 02532). Loggers were deployed from 2011 to 2015. Source: USDA Forest Service.
+
+```{r temp-sites-map, fig.cap="(ref:temp-sites-map-cap)"}
 knitr::include_graphics("../Results/v2.0/NS204_temp_sites_map.jpeg")
 ```
 
 \newpage
 
-```{r precip-sites-map, fig.cap="Locations of 51 precipitation measurement sites. Source: NOAA NCEI"}
+```{r precip-sites-map, fig.cap="Locations of 51 stations within the study area where hourly precipitation data were measured. Source: NOAA NCEI"}
 precip_sites_map.plot
 ```
 
+\newpage
 
-```{r detect-probs, fig.cap = "Capture probability by data source"}
+(ref:detect-probs-cap) Per-pass electrofishing capture probability by data source. A combination of single- and multi-pass sampling methods (single: `r round(passes_pcts.table[1,3], 1)`%, multi: `r round(passes_pcts.table[2,3], 1)`%) were employed following standardized sampling protocols for the southern US region [@sdafstroutcommittee1992]. In multi-pass sampling, fish were removed from the stream in successive passes in temporarily blocked stream reaches to estimate capture probability and thus population size. Sampling boundaries were defined by block nets or cobble dams which serve as barriers for fish movement. Depending on stream width, one to three backpack electrofishing units were used.
+
+```{r detect-probs, fig.cap = "(ref:detect-probs-cap)"}
 Detect_probs.plot
 ```
 
 \newpage
 
-```{r YOY-betas-corrPlot-plot, fig.cap="Spearman correlations between segment-specific climate effects on YOY log density (model $\bf{\beta}_i$s) and segment geography."}
+(ref:YOY-betas-corrPlot-plot-cap) Spearman correlations between segment-specific climate effects (model $\bf{\beta}_i$) on log density of YOY brook trout (*Salvelinus fontinalis*) and segment geography.
+
+```{r YOY-betas-corrPlot-plot, fig.cap="(ref:YOY-betas-corrPlot-plot-cap)"}
 #knitr::include_graphics("../Results/v2.0/YOY_betas_corrPlot.plot.jpeg")
 ```
 
 \newpage
 
+(ref:YOY-betas-corr-table-cap) Top ten correlations between model $\bf{\beta}_i$ and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctCrop2016Cat = Percent of catchment area classified as crop land use (2016 NLCD class 82), VE_09 = Velocity for adjusted predicted runoff (September), VC_08 = Velocity for predicted runoff (August), VA_10 = Velocity for annual runnoff (October), VA_09 = Velocity for annual runnoff (September), VC_10 = Velocity for predicted runoff (October), VC_07 = Velocity for predicted runoff (July), QC_09 = Estimated flow (September), PctHay2016Ws = Percent of watershed classified as hay land use (2016 NLCD class 81), Pathlength = Distance downstream to network end (km).
+
 ```{r YOY-betas-corr-table}
-kable(YOY_beta_corrs.table,
-      col.names = c("Climate Covariate", "Local Habitat\nVariable", "Spearman Correlation"),
-      caption = "Top ten correlations between model $\\bm{\\beta}_i$s and local habitat.")
+kbl(YOY_beta_corrs.table,
+      row.names = F,
+      col.names = c("Climate Covariate (\\beta_i)", "Local Habitat Variable", "Spearman Correlation"),
+      caption = "(ref:YOY-betas-corr-table-cap)")
 ```
 
 \newpage
 
-```{r YOY-climate-effects-semivariogram-plot, fig.cap = "Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout. If spatial strucutre is present, nearer values will have lover semivariance than farther values. Climate variables include a) average 0.9Q summer air temperature (year t-1), b) max 0.9Q winter stream flow (year t), and c) max 0.9Q spring stream flow (year t). DD = Decimal degrees."}
+(ref:YOY-climate-effects-semivariogram-plot-cap) Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout (*Salvelinus fontinalis*). If spatial structure is present, nearer values will have lover semivariance than farther values. Climate variables include: average 0.9Q summer air temperature (year t-1), max 0.9Q winter stream flow (year t), and max 0.9Q spring stream flow (year t). DD = Decimal degrees.
+
+```{r YOY-climate-effects-semivariogram-plot, fig.cap = "(ref:YOY-climate-effects-semivariogram-plot-cap)"}
 YOY_climate_effects_semivariogram.plot
 ```
 
 \newpage
 
+(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctShrb2016Cat = Percent of catchment classified as shrub/scrub land cover (2016 NLCD class 52), PctShrb2016Ws = Percent of watershed classified as shrub/scrub land cover (2016 NLCD class 52), OmCat = Mean organic matter content (% by weight) of soils (STATSGO) within Catchment, OmWs = Mean organic matter content (% by weight) of soils (STATSGO) within watershed, QC_02 = Adjusted predicted runoff (February), PctNonAgIntrodManagVegWs = % Nonagriculture nonnative introduced or managed vegetation landcover type reclassed from LANDFIRE Existing Vegetation Type (EVT), within watershed, VC_01 = Velocity for adjusted predicted runoff (January), VC_02 = Velocity for adjusted predicted runoff (February), BFIWs = % of baseflow (groundwater discharge) to total flow, within watershed, QE_02 = Gauge flow (February).
+
 ```{r YOY-ICCs-corr-table}
-kable(YOY_ICC_corrs.table,
+kbl(YOY_ICC_corrs.table,
+      row.names = F,
       col.names = c("Local Habitat\nVariable", "Spearman Correlation"),
-      caption = "Top ten correlations between ICCs and local habitat.")
+      caption = "(ref:YOY-ICCs-corr-table-cap)")
 ```
 
 \newpage
 
-```{r YOY-ICC-semivariogram-plot, fig.cap="Semivariogram depicting spatial structure in stream segment-specific intraclass corrrelation coefficients of abundance of young-of-year brook trout. If spatial strucutre is present, nearer values will have lover semivariance than farther values. DD = Decimal degrees."}
+(ref:YOY-ICC-semivariogram-plot-cap) Semivariogram depicting spatial structure in stream segment-specific intraclass correlation coefficients (ICCs) of abundance of young-of-year brook trout (*Salvelinus fontinalis*). If spatial structure is present, nearer values will have lower semivariance than farther values. DD = Decimal degrees.
+
+```{r YOY-ICC-semivariogram-plot, fig.cap="(ref:YOY-ICC-semivariogram-plot-cap)"}
 YOY_ICCs_semivariogram.plot
 ```
 
 \newpage
 
-```{r stock-recruitment-plot, fig.cap = "Semivariogram depicting spatial structure in stream segment-specific intraclass corrrelation coefficients of abundance of young-of-year brook trout. If spatial strucutre is present, nearer values will have lover semivariance than farther values. DD = Decimal degrees.", message=FALSE, warning=FALSE}
-plot_grid(SSR_1.plot,
-          SSR_2.plot,
+(ref:Adult-ICC-map-cap) Intraclass correlation coefficient (ICC) values for populations of adult brook trout (*Salvelinus fontinalis*) in the southeastern USA. High ICC values indicate synchrony synchrony relative to the temporal variation averaged across segments, while low ICC values indicate asynchrony.
+
+```{r Adult-ICC-map, fig.cap = "(ref:Adult-ICC-map-cap)"}
+Adult_ICC_map.plot
+```
+
+\newpage
+
+(ref:stock-recruitment-plot-cap) a) stock-recruitment and b) recruitment-stock relationships for young-of-the-year (YOY) and adult brook trout (*Salvelinus fontinalis*) in the 170 stream segments considered in the present analysis. Black lines represent stream segment-specific relationships, and blue lines represent averaged relationships.
+
+```{r stock-recruitment-plot, fig.cap = "(ref:stock-recruitment-plot-cap)", message=FALSE, warning=FALSE}
+plot_grid(SSR_2.plot,
+          SSR_1.plot,
           labels = c("a)", "b)"),
           nrow = 1)
+```
+
+\newpage
+
+(ref:CVs-plot-cap) Overall and stream segment-specific coefficients of variation (CV) in observed pass 1 abundance of young-of-the-year brook trout (\textit{Salvelinus fontinalis}). The dark black line represents the median, black box the interquartile range, and the whiskers the lowest/highest values within 1.5 times the interquartile range. Outliers beyond that range are represented by black dots.
+
+```{r CVs-plot, fig.cap= "(ref:CVs-plot-cap)"}
+CVs.plot
 ```
 
 \newpage

@@ -1,0 +1,63 @@
+---
+output: 
+  bookdown::pdf_document2:
+    template: csu_thesis_template.tex
+bibliography: bibliography.bib
+csl: apa.csl
+params:
+  run_name: ["v1.0"]
+    
+title: "SPATIAL SYNCHRONY IN A COLDWATER STREAM FISH IN ITS SOUTHERN RANGE"
+author: "George P. Valentine"
+email: "georgepvalentine@gmail.com"
+department: "Graduate Degree Program in Ecology"
+semester: "Spring 2023"
+advisor: "Yoichiro Kanno"
+coadvisor: "Mevin Hooten"
+committee: "Ryan Morrison"
+
+abstract: "Climate change affects effects populations with broad geographic ranges due to spatially autocorrelated abiotic conditions. However, populations do not always respond to broad-scale environmental changes synchronously across a landscape. In this paper, we used a retrospective analysis of time-series count data (5-29 annual samples per site) at over 150 sites dispersed across approximately 100,000 km$^2$ to characterize structure and scale of spatial synchrony in a coldwater stream fish (brook trout *Salvelinus fontinalis*) which is sensitive to temperature and flow alterations, in its southern native range. Spatial synchrony differed by life stage and geographic region: it was stronger in the early life stage of trout than a later stage and in northern sub-populations than southern sub-populations. Spatial synchrony of trout populations extended to 100-150 km but was much weaker than that of climate variables such as temperature and precipitation. Abundance and synchrony of only the early life stage changed over time due to annual variation in summer temperature and winter flow conditions. Climate effects on abundance differed locally among  sites, indicating that climate interacted with local habitat characteristics to generate only a modest pattern of population synchrony over space. Population synchrony was not spatially autocorrelated at the regional or sub-regional scales. We conclude that local populations of brook trout show modestly heterogeneous responses to climate variation due to the cross-scale interactions and are not equally susceptible to climate change. This response diversity indicates that some local sites characterized by population asynchrony and resistance to climate variation would most likely sustain populations of this iconic native coldwater fish in a changing climate. Identifying such high priority sites and incorporating them in the landscape-level conservation planning is imperative to their populations, and our approach is applicable to other widespread species sensitive to broad-scale climate change."
+
+acknowledgements: "This research was funded by Cooperative Agreement No. G21AC10205-00 from the U.S. Geological Survey Southeast Climate Adaptation Science Center and Cooperative Agreement Number F20AC11372-00 from the U.S. Fish and Wildlife Service."
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+
+# load required R packages
+library(here)         # For auto-locating files within the working directory
+library(bookdown)     # For numbering figures, tables, and equations
+library(stringr)      # For manipulating strings in figure captions
+library(ncf)          # For creating correlograms in missing data simulation (Appendix 1)
+library(cowplot)      # For creating gridded plots
+library(gridGraphics) # For including base R plots in gridded plots
+library(formatR)      # For displaying tidy code in output
+library(knitr)        # For making tidy tables
+library(forcats)      # For cats
+library(latex2exp)    # For writing special characters in plot labels
+library(kableExtra)   # For formatting tables
+library(tinytex)
+
+# Save the directory from which to pull results files
+run_dir <- here::here("results", params$run_name)
+
+# Load figures and tables to include
+load(file = file.path(run_dir, "plots.rdata"))
+load(file = file.path(run_dir, "tables.rdata"))
+```
+
+\section{Introduction}
+
+```{r intro, child = 'introduction.Rmd'}
+```
+
+
+\section{Bibliography}
+
+\bibliographystyle{apacite}
+
+\bibliography{main_thesis2}
+
+```{r biblio, child = 'bibliography.Rmd'}
+```

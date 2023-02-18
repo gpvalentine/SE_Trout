@@ -1,20 +1,21 @@
 ---
-title: "Spatial asynchrony and cross-scale climate interactions in populations of coldwater stream fish"
+title: "Spatial asynchrony and cross-scale climate interactions in populations of a coldwater stream fish"
 author: 
   - George P. Valentine, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University, george.valentine@colostate.edu
   - Xinyi Lu, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University
-  - Evan Childress, Shenandoah National Park
+  - Evan S. Childress, Shenandoah National Park
   - C. Andrew Dolloff, U.S. Forest Service Southern Research Station
-  - Nathanial Hitt, U.S. Geological Survey Eastern Ecological Science Center
-  - Matthew Kulp, Great Smoky Mountains National Park
-  - Benjamin Letcher, U.S. Geological Survey Eastern Ecological Science Center
-  - Jacob Rash, North Carolina Wildlife Resources Comission
-  - Mevin Hooten, Dept. Statistics & Data Sciences, University of Texas at Austin
+  - Nathanial P. Hitt, U.S. Geological Survey Eastern Ecological Science Center
+  - Matthew A. Kulp, Great Smoky Mountains National Park
+  - Benjamin H. Letcher, U.S. Geological Survey Eastern Ecological Science Center
+  - Kasey C. Pregler, Dept. of Env. Science, Policy, & Management, University of California Berkeley
+  - Jacob M. Rash, North Carolina Wildlife Resources Comission
+  - Mevin B. Hooten, Dept. Statistics & Data Sciences, The University of Texas at Austin
   - Yoichiro Kanno, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University, yoichiro.kanno@colostate.edu
 date: "`r Sys.Date()`"
 output:
   bookdown::pdf_document2:
-    toc: TRUE
+    toc: FALSE
     number_sections: TRUE
     keep_tex: true
 geometry: "left = 2.5cm, right = 2cm, top = 2cm, bottom = 2cm"
@@ -40,16 +41,19 @@ params:
 knitr::opts_chunk$set(echo = F, warning = F, message = F)
 
 # load required R packages
+library(tidyverse)    # For tidy data management
 library(here)         # For auto-locating files within the working directory
 library(bookdown)     # For numbering figures, tables, and equations
 library(stringr)      # For manipulating strings in figure captions
 library(ncf)          # For creating correlograms in missing data simulation (Appendix 1)
+library(ggplot2)      # For tidy plotting
 library(cowplot)      # For creating gridded plots
 library(gridGraphics) # For including base R plots in gridded plots
 library(formatR)      # For displaying tidy code in output
 library(knitr)        # For making tidy tables
 library(forcats)      # For cats
 library(latex2exp)    # For writing special characters in plot labels
+library(MCMCvis)      # MCMC tools
 library(kableExtra)   # For formatting tables
 library(tinytex)
 
@@ -94,8 +98,13 @@ load(file = file.path(run_dir, "tables.rdata"))
 
 # Discussion
 
-```{r discussion, child = 'discussion.Rmd'}
+```{r discussion, child = 'discussion_ecology.Rmd'}
 ```
+
+\newpage
+
+# Acknowledgements
+We thank the numerous agencies and organizations who provided the data utilized in this study. Without the hard work of numerous biologists, technicians, and volunteers, this study would not have been possible.
 
 \newpage
 
