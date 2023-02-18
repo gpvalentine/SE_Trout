@@ -575,6 +575,18 @@ model{
   }
   mean_ICC.YOY <- mean(ICC.YOY)
   
+  # ## Measuring Portfolio effect using predicted density
+  # # Calculate CV for each segment
+  # for (i in 1:nReps) {
+  #   CV.p1[i] <- sd(p1_YOY[i,1:nYears])/mean(p1_YOY[i,1:nYears])
+  # }
+  # 
+  # # Calculate CV for all segments
+  # for (t in 1:nYears) {
+  #   p1_mean[t] <- mean(p1_YOY[,t])
+  # }
+  # CV.p1_all <- sd(p1_mean)/mean(p1_mean)
+  
   ### Posterior Predictive Check ###
   # Predict new data
   for (i in 1:nReps) {
@@ -609,7 +621,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1", "CV.p1", "CV.p1_all")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -632,9 +644,9 @@ init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
 
 
 # MCMC settings
-ni <- 25000
+ni <- 50000
 nc <- 3
-nb <- 5000
+nb <- 20000
 nt <- 1
 
 set.seed(1234)
@@ -652,7 +664,7 @@ YOY_randomEffects <- jagsUI::jags(data = jags_data,
 
 YOY_randomEffects_params <- MCMCsummary(YOY_randomEffects, HPD = T)
 
-#MCMCtrace(YOY_randomEffects_params, params = , pdf = F)
+MCMCtrace(YOY_randomEffects, params = "CV.N", pdf = F)
 
 ### Adults
 # Adult model with just env. covariates
@@ -1605,7 +1617,7 @@ Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                              mean(SE_segments_NHDPlus_N$LENGTHKM, na.rm = T),
                                              mean(SE_segments_NHDPlus_N$AreaSqKM, na.rm = T),
                                              mean(rowMeans(SE_segments_NHDPlus_N[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                             mean(SE_segments_NHDPlus_N$StreamOrde, na.rm = T),
+                                             round(mean(SE_segments_NHDPlus_N$StreamOrde, na.rm = T), 0),
                                              mean(SE_segments_N$Width_m, na.rm = T),
                                              mean(summTemp_N$Mean_Max_Summer_Temp, na.rm = T),
                                              mean(streamFlow_N$Max_0.9Q_WinterFlow, na.rm = T),
@@ -1614,7 +1626,7 @@ Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                                 sd(SE_segments_NHDPlus_N$LENGTHKM, na.rm = T),
                                                 sd(SE_segments_NHDPlus_N$AreaSqKM, na.rm = T),
                                                 sd(rowMeans(SE_segments_NHDPlus_N[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                                sd(SE_segments_NHDPlus_N$StreamOrde, na.rm = T),
+                                                round(sd(SE_segments_NHDPlus_N$StreamOrde, na.rm = T), 0),
                                                 sd(SE_segments_N$Width_m, na.rm = T),
                                                 sd(summTemp_N$Mean_Max_Summer_Temp, na.rm = T),
                                                 sd(streamFlow_N$Max_0.9Q_WinterFlow, na.rm = T),
@@ -1623,7 +1635,7 @@ Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                                    mean(SE_segments_NHDPlus_S$LENGTHKM, na.rm = T),
                                                    mean(SE_segments_NHDPlus_S$AreaSqKM, na.rm = T),
                                                    mean(rowMeans(SE_segments_NHDPlus_S[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                                   mean(SE_segments_NHDPlus_S$StreamOrde, na.rm = T),
+                                                   round(mean(SE_segments_NHDPlus_S$StreamOrde, na.rm = T), 0),
                                                    mean(SE_segments_S$Width_m, na.rm = T),
                                                    mean(summTemp_S$Mean_Max_Summer_Temp, na.rm = T),
                                                    mean(streamFlow_S$Max_0.9Q_WinterFlow, na.rm = T),
@@ -1632,11 +1644,16 @@ Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                                  sd(SE_segments_NHDPlus_S$LENGTHKM, na.rm = T),
                                                  sd(SE_segments_NHDPlus_S$AreaSqKM, na.rm = T),
                                                  sd(rowMeans(SE_segments_NHDPlus_S[,c("MAXELEVSMO", "MINELEVSMO")], na.rm = T), na.rm = T)/100,
-                                                 sd(SE_segments_NHDPlus_S$StreamOrde, na.rm = T),
+                                                 round(sd(SE_segments_NHDPlus_S$StreamOrde, na.rm = T), 0),
                                                  sd(SE_segments_S$Width_m, na.rm = T),
                                                  sd(summTemp_S$Mean_Max_Summer_Temp, na.rm = T),
                                                  sd(streamFlow_S$Max_0.9Q_WinterFlow, na.rm = T),
                                                  sd(streamFlow_S$Max_0.9Q_SpringFlow, na.rm = T)))
+
+# What is the average length of *sites* that were electrofished?
+SE_Site_Final %>% 
+  filter(COMID %in% sample_areas$COMID) %>% 
+  summarise( mean_len = mean(Length_m, na.rm = T))
 
 #####################################
 # Create a table of covariate summaries
@@ -1693,7 +1710,8 @@ SSR_1.plot <- stock_recruit_data %>%
               se = FALSE) +
   theme_classic() +
   labs(x = "Log (mean YOY abundance) in year t",
-       y = "Log (mean Adult abundance) in year t+1")
+       y = "Log (mean adult abundance) in year t+1") +
+  theme(aspect.ratio = 1)
 
 SSR_2.plot <- stock_recruit_data %>% 
   ggplot(aes(x = log_Adults_t,
@@ -1709,7 +1727,8 @@ SSR_2.plot <- stock_recruit_data %>%
               se = FALSE) +
   theme_classic() +
   labs(x = "Log (mean adult abundance) in year t",
-       y = "Log (mean YOY abundance) in year t+1")
+       y = "Log (mean YOY abundance) in year t+1") +
+  theme(aspect.ratio = 1)
 
 ###################
 # PPC p-values
@@ -1717,22 +1736,22 @@ SSR_2.plot <- stock_recruit_data %>%
 YOY_climateEffects_PPCs <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(mean)
+  dplyr::select(2,4,5)
 
 YOY_randomEffects_PPCs <- YOY_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(mean)
+  dplyr::select(2,4,5)
 
 Adult_climateEffects_PPCs <- Adult_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(mean)
+  dplyr::select(2,4,5)
 
 Adult_randomEffects_PPCs <- Adult_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(mean)
+  dplyr::select(2,4,5)
 
 PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 4),
                                              rep("Adult", 4)),
@@ -1816,8 +1835,8 @@ YOY_lowestICCs_map.plot <- ggplot() +
        y = "Lat",
        #title = "Posterior ICC Means for YOY BKT",
        color = "ICC") +
-  theme_classic() +
-  theme(text = element_text(family =  "serif"))
+  theme_classic()
+  #theme(text = element_text(family =  "serif"))
 
 Adult_highestICCs_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
@@ -1881,8 +1900,8 @@ YOY_ICC_map.plot <- ggplot() +
        #title = "Posterior ICC Means for YOY BKT",
        color = "ICC") +
   scale_color_viridis_c() +
-  theme_classic() + 
-  theme(text = element_text(family =  "serif"))
+  theme_classic()  
+  #theme(text = element_text(family =  "serif"))
 
 # Adult
 Adult_ICC_map.plot <- ggplot() +
@@ -1900,8 +1919,8 @@ Adult_ICC_map.plot <- ggplot() +
        #title = "Posterior ICC Means for Adult BKT",
        color = "ICC") +
   scale_color_viridis_c() +
-  theme_classic() + 
-  theme(text = element_text(family =  "serif"))
+  theme_classic() 
+  #theme(text = element_text(family =  "serif"))
 
 # Is ICC correlated with any site-level variables?
 library(corrplot)
@@ -1922,10 +1941,37 @@ ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>%
   left_join(SE_Site_Final, by = "COMID") %>% 
   left_join(NHDplus_data) %>% 
   left_join(StreamCat_Data) %>% 
-  select(-SiteID,
-         -COMID)
+  select(where(is.numeric),
+         -SiteID,
+         -COMID,
+         -LongTerm,
+         -fid,
+         -OBJECTID,
+         -GNIS_ID,
+         -REACHCODE,
+         -WBAREACOMI,
+         -FCODE,
+         -FromNode,
+         -ToNode,
+         -Hydroseq,
+         -LevelPathI,
+         -TerminalPa,
+         -Divergence,
+         -StartFlag,
+         -TerminalFl,
+         -DnLevel,
+         -UpLevelPat,
+         -DnLevelPat,
+         -UpHydroseq,
+         -DnMinorHyd,
+         -DnDrainCou,
+         -DnHydroseq,
+         -RtnDiv,
+         -VPUIn,
+         -VPUOut,
+         -Tidal)
 
-YOY_ICC_corrPlot <- corrplot(cor(select_if(ICC_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
+YOY_ICC_corrPlot <- corrplot(cor(ICC_corr_data , method="spearman", use="pairwise.complete.obs"))
 # get values
 YOY_ICC_corrs.table <- as.data.frame(YOY_ICC_corrPlot$corrPos) %>% 
   filter(xName == "mean")
@@ -1944,12 +1990,59 @@ PA_StreamSegments <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrol
 # % BKT segments with 25% best ICCs in protected areas:
 nrow(YOY_ICCs.table %>% filter(mean < quantile(mean, 0.25), COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% filter(mean < quantile(mean, 0.25))) * 100
 
-# % of top 6 ICCs in protected areas
-nrow(YOY_ICCs.table %>% slice_min(mean, n = 6) %>% filter(COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% slice_min(mean, n = 6)) * 100
+# % of top 5 ICCs in protected areas
+nrow(YOY_ICCs.table %>% slice_min(mean, n = 5) %>% filter(COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% slice_min(mean, n = 5)) * 100
+
+# % of ALL segments in protected areas
+nrow(YOY_ICCs.table %>% filter(COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table) * 100
+
+# 25% most synchronous segments
+nrow(YOY_ICCs.table %>% filter(mean > quantile(mean, 0.75), COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% filter(mean > quantile(mean, 0.75))) * 100
+
+# and 5 most synchronous segments
+nrow(YOY_ICCs.table %>% slice_max(mean, n = 5) %>% filter(COMID %in% PA_StreamSegments$COMID))/nrow(YOY_ICCs.table %>% slice_max(mean, n = 5)) * 100
 
 ################
 # Covariate effects/betas
-# Summarize covariate effects in table
+YOY_mu.betas.table <- data.frame(rbind(data.frame(subregion = rep("All", 3)),
+                                   data.frame(subregion = rep("North", 3)),
+                                   data.frame(subregion = rep("South", 3))),
+                             rbind(data.frame(covar = c("SummTemp", "WintFlow", "SprFlow")),
+                                   data.frame(covar = c("SummTemp", "WintFlow", "SprFlow")),
+                                   data.frame(covar = c("SummTemp", "WintFlow", "SprFlow"))),
+                             rbind(YOY_climateEffects_params %>% 
+                                     rownames_to_column(., "param") %>% 
+                                     filter(str_detect(param, "mu.beta")) %>% 
+                                     select(2,4,5),
+                                   YOY_climateEffects_N_params %>% 
+                                     rownames_to_column(., "param") %>% 
+                                     filter(str_detect(param, "mu.beta")) %>% 
+                                     select(2,4,5),
+                                   YOY_climateEffects_S_params %>% 
+                                     rownames_to_column(., "param") %>% 
+                                     filter(str_detect(param, "mu.beta")) %>% 
+                                     select(2,4,5)))
+
+Adult_mu.betas.table <- data.frame(rbind(data.frame(subregion = rep("All", 3)),
+                                       data.frame(subregion = rep("North", 3)),
+                                       data.frame(subregion = rep("South", 3))),
+                                 rbind(data.frame(covar = c("SummTemp", "WintFlow", "SprFlow")),
+                                       data.frame(covar = c("SummTemp", "WintFlow", "SprFlow")),
+                                       data.frame(covar = c("SummTemp", "WintFlow", "SprFlow"))),
+                                 rbind(Adult_climateEffects_params %>% 
+                                         rownames_to_column(., "param") %>% 
+                                         filter(str_detect(param, "mu.beta")) %>% 
+                                         select(2,4,5),
+                                       Adult_climateEffects_N_params %>% 
+                                         rownames_to_column(., "param") %>% 
+                                         filter(str_detect(param, "mu.beta")) %>% 
+                                         select(2,4,5),
+                                       Adult_climateEffects_S_params %>% 
+                                         rownames_to_column(., "param") %>% 
+                                         filter(str_detect(param, "mu.beta")) %>% 
+                                         select(2,4,5)))
+  
+# Summarize samples of covariate effects in table
 # plot data
 mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_climateEffects$sims.list$mu.beta[,1]),
                                                              as.matrix(YOY_climateEffects$sims.list$mu.beta[,2]),
@@ -2177,12 +2270,39 @@ beta_corr_data <- YOY_climate_effects.table %>%
   pivot_wider(names_from = covar, values_from = mean) %>% 
   left_join(NHDplus_data) %>% 
   left_join(StreamCat_Data) %>% 
-  select(-COMID)
+  select(where(is.numeric),
+         -COMID,
+         -fid,
+         -OBJECTID,
+         -GNIS_ID,
+         -REACHCODE,
+         -WBAREACOMI,
+         -FCODE,
+         -FromNode,
+         -ToNode,
+         -Hydroseq,
+         -LevelPathI,
+         -TerminalPa,
+         -Divergence,
+         -StartFlag,
+         -TerminalFl,
+         -DnLevel,
+         -UpLevelPat,
+         -DnLevelPat,
+         -UpHydroseq,
+         -DnMinorHyd,
+         -DnDrainCou,
+         -DnHydroseq,
+         -RtnDiv,
+         -VPUIn,
+         -VPUOut,
+         -Tidal)
 
-YOY_beta_corrPlot <- corrplot(cor(select_if(beta_corr_data, is.numeric) , method="spearman", use="pairwise.complete.obs"))
+YOY_beta_corrPlot <- corrplot(cor(beta_corr_data, method="spearman", use="pairwise.complete.obs"))
 # get values
 YOY_beta_corrs.table <- as.data.frame(YOY_beta_corrPlot$corrPos) %>% 
-  filter(xName %in% c("Summer Temperature", "Winter Flow", "Spring Flow"))
+  filter(xName %in% c("Summer Temperature", "Winter Flow", "Spring Flow"),
+         !yName %in% c("Summer Temperature", "Winter Flow", "Spring Flow"))
 # betas are not really correlated with any of these site-level covars
 YOY_beta_corrs.table <- YOY_beta_corrs.table %>% 
   arrange(-abs(corr)) %>% 
@@ -2285,6 +2405,22 @@ climate_effect_ranges.plot <- ggplot(data = cov_effect_ranges.table) +
     y = element_blank()) +
   theme_classic()
 
+# What were the variances of covariate effects on YOY abundance?
+YOY_climate_vars <- YOY_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "^s2.beta")) %>% 
+  .[,c(2,4,5)]
+
+Adult_climate_vars <- Adult_climateEffects_params %>% 
+  rownames_to_column(., "param") %>% 
+  filter(str_detect(param, "^s2.beta")) %>% 
+  .[,c(2,4,5)]
+
+cov_effect_variances.table <- data.frame(Life_Stage = c(rep("YOY", 3), rep("Adult", 3)),
+                                         Covar = rep(c("Summ Temp", "Wint Flow", "Spr Flow"), 2),
+                                         rbind(YOY_climate_vars,
+                                               Adult_climate_vars))
+
 ################
 # Summarize detection probability in table
 
@@ -2320,6 +2456,38 @@ Detect_probs.plot <- ggplot(data = Detect_probs.table) +
   theme_classic() 
   # theme(text = element_text(family =  "serif"),
   #       axis.text.x = element_text(angle = -45, hjust=0))
+
+################
+# Portfolio effect analysis
+# How does the range of coefficients of variation (CVs) of observed count among populations compare to the CV of all populations?
+# Evidence of portfolio effect: if the overall CV is lower than that of the individual populations
+
+# Calculate CV for each segment
+CV.p1 <- rep(NA, nrow(p1_YOY))
+
+for (i in 1:nrow(p1_YOY)) {
+  CV.p1[i] <- sd(p1_YOY[i,1:34], na.rm = T)/rowMeans(p1_YOY[i,1:34], na.rm = T)
+}
+
+p1_colMean <- rep(NA, 34)
+
+# Calculate CV for all segments
+for (t in 1:34) {
+  p1_colMean[t] <- colMeans(p1_YOY[,t], na.rm = T)
+}
+
+CV.p1_all <- sd(p1_colMean, na.rm = T)/mean(p1_colMean, na.rm = T)
+
+CVs.table <- data.frame(rbind(as.data.frame(CV.p1), CV.p1_all),
+                  rbind(as.data.frame(rep("Segment CVs", length(CV.p1))),
+                                "Overall CV"))
+colnames(CVs.table) <- c("CV", "param")
+
+CVs.plot <- ggplot(CVs.table) +
+  geom_boxplot(aes(x = param,
+                   y = CV)) +
+  labs(x = "Parameter") +
+  theme_classic()
 
 
 ########################################################

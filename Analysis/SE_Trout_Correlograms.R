@@ -809,7 +809,7 @@ Flow.COMID.synch.plot <- ggplot() +
 #        width = 5, height = 3)
 
 
-## Mean Estimated 0.9Q Summer Temp
+## Mean Estimated Daily Max Summer Temp
 # Summer temps
 #load summer temp data (keep in mind this is 1980-2015)
 SummTemp_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/R Files/Spatial Synchrony in Trout/SE_COMID_temp_covars.csv")
