@@ -18,6 +18,7 @@ library(HDInterval)   # For calculating 95% credible intervals
 library(gridExtra)    # For combining plots
 library(here)         # for smart file paths - eliminates exact paths
 library(PerformanceAnalytics) # For conducting correlation tests
+library(viridis)      # Colorblind-friendly plotting palettes
 
 
 # Load data
@@ -445,7 +446,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1", "N.YOY")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -484,7 +485,7 @@ YOY_climateEffects <- jagsUI::jags(data = jags_data,
                                    parallel = T,
                                    inits = init_vals)
 
-YOY_climateEffects_params <- MCMCsummary(YOY_climateEffects, HPD = T)
+YOY_climateEffects_params <- MCMCsummary(YOY_climateEffects, HPD = T, excl = "N.YOY")
 
 # What was the range of covariate effects on YOY abundance?
 YOY_climateEffects_params %>% 
@@ -492,6 +493,27 @@ YOY_climateEffects_params %>%
   filter(str_detect(param, "^beta\\[1")) %>% 
   .[,2] %>% 
   range()
+
+MCMCtrace(YOY_climateEffects, params = "N.YOY", pdf = F)
+
+# plot abundance over time
+N.YOY_climateEffects <- MCMCsummary(YOY_climateEffects,
+                                    func = "median",
+                                    HPD = T, params = "N.YOY")
+
+N.YOY_climateEffects.table <- N.YOY_climateEffects %>%
+  rownames_to_column(., "param") %>% 
+  mutate(SegmentNo = as.numeric(str_extract(param, "[:digit:]+")),
+         YearNo = as.numeric(str_extract(param, "(?<=,)[:digit:]+"))) %>% 
+  left_join(cbind(COMID = p1_YOY$COMID, data.frame(SegmentNo = seq(1,170)))) %>% 
+  
+  filter(func < 1000)
+
+ggplot(N.YOY_climateEffects.table) +
+  geom_line(aes(x = YearNo,
+                y = log(func + 1),
+                group = SegmentNo)) +
+  theme_classic()
 
 ## YOY model with just random effects
 sink("Analysis/nMix_JAGS_files/YOY_randomEffects.jags")
@@ -575,18 +597,6 @@ model{
   }
   mean_ICC.YOY <- mean(ICC.YOY)
   
-  # ## Measuring Portfolio effect using predicted density
-  # # Calculate CV for each segment
-  # for (i in 1:nReps) {
-  #   CV.p1[i] <- sd(p1_YOY[i,1:nYears])/mean(p1_YOY[i,1:nYears])
-  # }
-  # 
-  # # Calculate CV for all segments
-  # for (t in 1:nYears) {
-  #   p1_mean[t] <- mean(p1_YOY[,t])
-  # }
-  # CV.p1_all <- sd(p1_mean)/mean(p1_mean)
-  
   ### Posterior Predictive Check ###
   # Predict new data
   for (i in 1:nReps) {
@@ -621,7 +631,7 @@ jags_data <- list(nReps = nReps,
 
 
 # Parameters to save
-jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1", "CV.p1", "CV.p1_all")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1", "CV.p1", "CV.p1_all", "N.YOY")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
 N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
@@ -662,9 +672,12 @@ YOY_randomEffects <- jagsUI::jags(data = jags_data,
                                   parallel = T,
                                   inits = init_vals)
 
-YOY_randomEffects_params <- MCMCsummary(YOY_randomEffects, HPD = T)
+YOY_randomEffects_params <- MCMCsummary(YOY_randomEffects, HPD = T, excl = "N.YOY")
 
-MCMCtrace(YOY_randomEffects, params = "CV.N", pdf = F)
+MCMCtrace(YOY_randomEffects, params = "N.YOY", pdf = F)
+
+# plot abundance over time
+N.YOY_randomEffects <- MCMCsummary(YOY_randomEffects, HPD = T, params = "N.YOY")
 
 ### Adults
 # Adult model with just env. covariates
@@ -1544,10 +1557,11 @@ sources.table <- p1_YOY %>%
                names_to = "Year",
                values_to = "Count") %>% 
   group_by(Source, Year) %>% 
-  summarise(Count = sum(Count, na.rm = T)) %>% 
+  dplyr::summarise(Count = sum(Count, na.rm = T)) %>% 
   ungroup(Year) %>% 
-  summarise(Data_Range = paste(Year[which.min(Count)], "-", Year[which.max(Count)]),
-            NYears_Data = sum(Count > 0)) %>% 
+  filter(Count > 0) %>% 
+  dplyr::summarise(Data_Range = paste(min(Year), "-", max(Year)),
+                   NYears_Data = n()) %>% 
   cbind(Agency = sources2$Agency) %>% 
   dplyr::select(-Source) %>% 
   .[,c("Agency", "Data_Range", "NYears_Data")]
@@ -1889,8 +1903,8 @@ YOY_ICC_map.plot <- ggplot() +
                color = "black", fill = NA) +
   geom_point(data = YOY_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
-  # geom_point(data = head(arrange(YOY_ICCs.table, mean)),
-  #            aes(x = Long, y = Lat), shape = 3) + # crosses
+  geom_point(data = head(arrange(YOY_ICCs.table, mean), 5),
+             aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -1899,7 +1913,7 @@ YOY_ICC_map.plot <- ggplot() +
        y = "Lat",
        #title = "Posterior ICC Means for YOY BKT",
        color = "ICC") +
-  scale_color_viridis_c() +
+  scale_color_viridis(option = "H") +
   theme_classic()  
   #theme(text = element_text(family =  "serif"))
 
@@ -1918,7 +1932,7 @@ Adult_ICC_map.plot <- ggplot() +
        y = "Lat",
        #title = "Posterior ICC Means for Adult BKT",
        color = "ICC") +
-  scale_color_viridis_c() +
+  scale_color_viridis(option = "H") +
   theme_classic() 
   #theme(text = element_text(family =  "serif"))
 
@@ -2115,6 +2129,8 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
   facet_grid(life_stage ~ .) +
   geom_vline(xintercept = 0, linetype = "dashed", size = 0.5) +
   theme_classic() +
+  #theme(panel.grid.major.y = element_line(colour = "grey80")) +
+  geom_hline(yintercept=seq(0,length(mu.beta_samples.table[,1]),1)+.5,color="grey80") +
   labs(x = "Value",
        y = element_blank(),
        fill = "Subregion") +
@@ -2186,16 +2202,23 @@ YOY_SummTemp_betas.plot <- ggplot() +
   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
              aes(x = Long, y = Lat, color = mean),
              alpha = 0.5) +
+             #shape=1) +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
+            ylim = c(34.8, 39.7)) +
+  # coord_map("bonne",
+  #           lat0 = 40,
+  #           xlim = c(-82, -76),
+  #           ylim = c(37.13, 40)) +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis_c() +
+  scale_color_viridis(option = "H") +
   theme_classic() 
-  # theme(legend.title = element_text( size=2), legend.text=element_text(size=2))
+  # theme(axis.ticks.x=element_blank(),
+  #       axis.text.x=element_blank(),
+  #       axis.title.x=element_blank())
 
 YOY_WintFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2207,12 +2230,15 @@ YOY_WintFlow_betas.plot <- ggplot() +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
+            ylim = c(34.8, 39.7)) +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis_c() +
-  theme_classic()
+  scale_color_viridis(option = "H") +
+  theme_classic() 
+  # theme(axis.ticks.x=element_blank(),
+  #       axis.text.x=element_blank(),
+  #       axis.title.x=element_blank())
 
 YOY_SprFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2224,16 +2250,12 @@ YOY_SprFlow_betas.plot <- ggplot() +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -76),
-            ylim = c(34.5, 40)) +
+            ylim = c(34.8, 39.7)) +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis_c() +
+  scale_color_viridis(option = "H") +
   theme_classic()
-
-YOY_climate_effects_map.plot <- grid.arrange(YOY_SummTemp_betas.plot,
-                                             YOY_WintFlow_betas.plot,
-                                             YOY_SprFlow_betas.plot, nrow = 1)
 
 ####
 # plots of first-pass trout count versus each climate covariate where each segment = each line

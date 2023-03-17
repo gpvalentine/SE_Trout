@@ -680,6 +680,11 @@ compound_density_corrgram.data <- data.frame(AgeClass = c(rep("All", 900),
 compound_density_corrgram.data$AgeClass <- factor(compound_density_corrgram.data$AgeClass,
                                                   levels = c("All", "Adult", "YOY"))
 
+# Remove the "all" category from this plot
+compound_density_corrgram.data <- compound_density_corrgram.data %>% 
+  filter(AgeClass != "All",
+         Subregion != "All")
+
 compound_corrgram_BKT.plot <- ggplot(compound_density_corrgram.data) + 
   # Estimate
   geom_line(aes(x = x,
@@ -699,6 +704,7 @@ compound_corrgram_BKT.plot <- ggplot(compound_density_corrgram.data) +
   labs(x = "Distance Class (km)",
        y = "Correlation") +
   facet_grid(AgeClass ~ Subregion)
+
 #####################
 # and combine summary stats into a table
 Corr_Stats <- compound_density_corrgram.data %>% 
@@ -1220,7 +1226,8 @@ compound_corrgram2.plot <- ggplot() +
        y = "Correlation",
        fill = "Legend") +
   scale_fill_manual(values = colors2) +
-  theme(legend.title=element_blank())
+  theme(legend.title=element_blank()) +
+  guides(fill = guide_legend(override.aes = list(alpha = 0.5)))
 
 # Save to SDAFS 2023 folder for presentation
 # ggsave("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/SDAFS 2023 Presentation/Compound_Corrgram3.jpeg",

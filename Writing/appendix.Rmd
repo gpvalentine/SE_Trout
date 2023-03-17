@@ -8,25 +8,27 @@ output: bookdown::pdf_document2
 \renewcommand{\thetable}{S\arabic{table}}
 \setcounter{table}{0}
 
-```{r sources-table, fig.pos="H"}
+```{r sources-table}
 kbl(sources.table,
-      col.names = c("Agency", "Date Range", "# Years Data"),
-      caption = "Data availability by agency.") %>%
+      col.names = c("Agency", "Date Range", "Years Data"),
+      caption = "Data availability by agency. 'Years Data' indicates temporal coverage within the data range.") %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
 \newpage
 
-## Simulation for Missing Data in Correlogram Analysis
-A simulation study was undertaken to evaluate the feasibility of interpreting correlograms creating using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly Brook Trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
+## Simulation for Missing Data in Correlogram Analysis {-}
+A simulation study was undertaken to evaluate the feasibility of interpreting correlograms created using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly brook trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
 
 ```{r Corrgram_MissingData_Sim, echo=TRUE, message=FALSE, warning=FALSE}
+
 set.seed(1234)
 
 ### Simulate 0 pct missingness data at 100 sites over 2 years
 x <- expand.grid(1:20, 1:5)[, 1]
 y <- expand.grid(1:20, 1:5)[, 2]
-Z <- cbind(rmvn.spa(x=x, y=y, p=2, method="gaus"), # true range (p) is 2 under Gaussian covariance function
+# true range (p) is 2 under Gaussian covariance function
+Z <- cbind(rmvn.spa(x=x, y=y, p=2, method="gaus"),
   rmvn.spa(x=x, y=y, p=2, method="gaus"))
 # Fit correlogram
 fit0 <- Sncf(x=x, y=y, z=Z, resamp=1E3, quiet = T)
@@ -88,21 +90,27 @@ Comparing the four simulations, we see that the 95% confidence interval grows wh
 
 \newpage
 
-## Simulation for Combined Model
+## Simulation for Combined Model {-}
 We developed a simulation to evaluate the identifiability of a model with both climate effects and random effects. We simulated 3-pass electrofishing data for 100 stream segments over 20 years, and evaluated with an an N-mixture model using a removal mechanism coupled with a log linear process model. We simulated one spatially heterogeneous climate covariate and both temporal and spatiotemporal random effects. Detection probability was the same for all simulated stream segments.
 
-```{r CombinedModel_Sim, echo=TRUE, message=FALSE, warning=FALSE}
+```{r CombinedModel_Sim, eval=F, echo=TRUE, message=FALSE, warning=FALSE}
+
 set.seed(1234)
 
 ## settings
 nSites <- 100
 nYears <- 20
 nPasses <- 3
-x <- matrix(rnorm(nSites*nYears), nrow = nSites, ncol = nYears)  # climate cov (mean standardized)
-alpha0 <- runif(nSites, min = 3, max = 4.5)  # site specific intercept
-alpha1 <- rnorm(nSites, mean = -0.3, sd = 0.3)  # spatially heterogeneous climate cov effect
-eps <- rnorm(nYears, mean = 0, sd = 0.4)  # time random effect
-gamma <- matrix(rnorm(nSites*nYears, mean = 0, sd = 0.2), nrow = nSites, ncol = nYears) # time-site random effect
+# climate cov (mean standardized):
+x <- matrix(rnorm(nSites*nYears), nrow = nSites, ncol = nYears) 
+# site specific intercept:
+alpha0 <- runif(nSites, min = 3, max = 4.5)
+# spatially heterogeneous climate cov effect:
+alpha1 <- rnorm(nSites, mean = -0.3, sd = 0.3)
+# time random effect:
+eps <- rnorm(nYears, mean = 0, sd = 0.4)
+# time-site random effect:
+gamma <- matrix(rnorm(nSites*nYears, mean = 0, sd = 0.2), nrow = nSites, ncol = nYears)
 p <- 0.6  # capture prob per pass
 N <- lam <- array(dim = c(nSites, nYears))
 y <- array(dim = c(nSites, nYears, nPasses))
@@ -135,7 +143,8 @@ jags_data <- list(nSites = nSites,
 # Parameters to save
 jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "sd.beta", "p", "sd.eps", "s2.eps", "sd.gam", "s2.gam")
 
-# create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
+# Create and populate an array of initial values for N.YOY. 
+# Initial values must all be great than or equal to the sum of observed counts
 N.inits <- array(numeric(), dim = c(nSites, nYears))
 for (i in 1:nSites) {
   for (t in 1:nYears) {
@@ -163,7 +172,8 @@ nt <- 1
 # Fit Model
 nMix_sim <- jagsUI::jags(data = jags_data,
                                    parameters.to.save = jags_params,
-                                   model.file = here("Analysis/nMix_JAGS_files", "nMix_sim.jags"),
+                                   model.file = here("Analysis/nMix_JAGS_files", 
+                                                     "nMix_sim.jags"),
                                    n.chains = nc,
                                    n.iter = ni,
                                    n.burnin = nb,
@@ -183,15 +193,17 @@ nrow(nMix_sim_sd.gams[nMix_sim_sd.gams$cont_true == TRUE,])/nrow(nMix_sim_sd.gam
 sim_plot_data <- data.frame(sample_val = rbind(as.matrix(nMix_sim$sims.list$mu.beta),
                                                as.matrix(nMix_sim$sims.list$sd.beta),
                                                as.matrix(nMix_sim$sims.list$sd.eps),
-                                               as.matrix(nMix_sim$sims.list$sd.gam[,1]), # choose the first sd.gam to plot b/c there are 100
+                                               as.matrix(nMix_sim$sims.list$sd.gam[,1]),
                                                as.matrix(nMix_sim$sims.list$p)),
                             parameter = rep(c("mu.beta", "sd.beta", "sd.eps", "sd.gam", "p"),
                                             each = length(nMix_sim$sims.list$mu.beta)))
 
 # specify order of the parameters to plot
-sim_plot_data$parameter <- factor(sim_plot_data$parameter, c("mu.beta", "sd.beta", "sd.eps", "sd.gam", "p"))
+sim_plot_data$parameter <- factor(sim_plot_data$parameter, 
+                                  c("mu.beta", "sd.beta", "sd.eps", "sd.gam", "p"))
 
-hlines <- data.frame(y = c(-0.3, 0.3, 0.4, 0.2, 0.6), # these are the generating values for the dataset
+ # these are the generating values for the dataset
+hlines <- data.frame(y = c(-0.3, 0.3, 0.4, 0.2, 0.6),
                      x = c(1,2,3,4,5))
 
 CombinedModel_Sim.plot <- ggplot() + 
@@ -208,9 +220,11 @@ CombinedModel_Sim.plot <- ggplot() +
   labs(x = "Parameter",
        y = "Value") +
   theme_classic()
+
+CombinedModel_Sim.plot
 ```
 
-```{r CombinedModel-Sim-plot, fig.cap= "Simulation results illustrating true parameter values (red dashed lines) and full posterior distributions of parameters generated using a model with a climate covariate and two random effects. Only the first sd.gam was plotted to simplify the visualization, however 93% of sd.gams contain the true parameter value within their 95% HPDI."}
+```{r CombinedModel-Sim-plot, fig.cap= "Simulation results illustrating true parameter values (red dashed lines) and full posterior distributions of parameters generated using a model with a climate covariate and two random effects. Only the first sd.gam was plotted to simplify the visualization, however 93% of sd.gams contain the true parameter value within their 95% HPDI.", eval=F}
 CombinedModel_Sim.plot
 ```
 
@@ -246,9 +260,9 @@ Detect_probs.plot
 
 \newpage
 
-(ref:YOY-betas-corr-table-cap) Top ten correlations between model $\bf{\beta}_i$ and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctCrop2016Cat = Percent of catchment area classified as crop land use (2016 NLCD class 82), VE_09 = Velocity for adjusted predicted runoff (September), VC_08 = Velocity for predicted runoff (August), VA_10 = Velocity for annual runnoff (October), VA_09 = Velocity for annual runnoff (September), VC_10 = Velocity for predicted runoff (October), VC_07 = Velocity for predicted runoff (July), QC_09 = Estimated flow (September), PctHay2016Ws = Percent of watershed classified as hay land use (2016 NLCD class 81), Pathlength = Distance downstream to network end (km).
+(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): VE_09 = Velocity for predicted runoff (September), PctCrop2016Cat = Percent of catchment area classified as crop land use (2016 NLCD class 82), VC_08 = Velocity for predicted runoff (August), VA_10 = Velocity for annual runoff (October),  VA_09 = Velocity for annual runoff (September), VC_10 = Velocity for predicted runoff (October), VC_07 = Velocity for predicted runoff (July), QC_09 = Estimated flow (September), PctHay2016Ws = Percent of watershed classified as hay land use (2016 NLCD class 81), Pathlength = Distance downstream to network end (km).
 
-```{r YOY-betas-corr-table}
+```{r YOY-betas-corr-table, message=FALSE, warning=FALSE}
 kbl(YOY_beta_corrs.table,
       row.names = F,
       col.names = c("Climate Covariate (\\beta_i)", "Local Habitat Variable", "Spearman Correlation"),
@@ -265,7 +279,7 @@ YOY_climate_effects_semivariogram.plot
 
 \newpage
 
-(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctShrb2016Cat = Percent of catchment classified as shrub/scrub land cover (2016 NLCD class 52), PctShrb2016Ws = Percent of watershed classified as shrub/scrub land cover (2016 NLCD class 52), OmCat = Mean organic matter content (% by weight) of soils (STATSGO) within Catchment, OmWs = Mean organic matter content (% by weight) of soils (STATSGO) within watershed, QC_02 = Adjusted predicted runoff (February), PctNonAgIntrodManagVegWs = % Nonagriculture nonnative introduced or managed vegetation landcover type reclassed from LANDFIRE Existing Vegetation Type (EVT), within watershed, VC_01 = Velocity for adjusted predicted runoff (January), VC_02 = Velocity for adjusted predicted runoff (February), BFIWs = % of baseflow (groundwater discharge) to total flow, within watershed, QE_02 = Gauge flow (February).
+(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctShrb2016Cat = Percent of catchment classified as shrub/scrub land cover (2016 NLCD class 52), PctShrb2016Ws = Percent of watershed classified as shrub/scrub land cover (2016 NLCD class 52), OmCat = Mean organic matter content (% by weight) of soils (STATSGO) within catchment, OmWs = Mean organic matter content (% by weight) of soils (STATSGO) within watershed, QC_02 = Adjusted predicted runoff (February), PctNonAgIntrodManagVegWs = % Nonagriculture nonnative introduced or managed vegetation landcover type reclassed from LANDFIRE Existing Vegetation Type (EVT), within watershed, VC_01 = Velocity for adjusted predicted runoff (January), VC_02 = Velocity for adjusted predicted runoff (February), BFIWs = % of baseflow (groundwater discharge) to total flow, within watershed, QE_02 = Gauge flow (February).
 
 ```{r YOY-ICCs-corr-table}
 kbl(YOY_ICC_corrs.table,
@@ -284,7 +298,7 @@ YOY_ICCs_semivariogram.plot
 
 \newpage
 
-(ref:Adult-ICC-map-cap) Intraclass correlation coefficient (ICC) values for populations of adult brook trout (*Salvelinus fontinalis*) in the southeastern USA. High ICC values indicate synchrony synchrony relative to the temporal variation averaged across segments, while low ICC values indicate asynchrony.
+(ref:Adult-ICC-map-cap) Intraclass correlation coefficient (ICC) values for populations of adult brook trout (*Salvelinus fontinalis*) in the southeastern USA. High ICC values indicate synchrony relative to the temporal variation averaged across segments, while low ICC values indicate asynchrony.
 
 ```{r Adult-ICC-map, fig.cap = "(ref:Adult-ICC-map-cap)"}
 Adult_ICC_map.plot
@@ -292,7 +306,7 @@ Adult_ICC_map.plot
 
 \newpage
 
-(ref:stock-recruitment-plot-cap) a) stock-recruitment and b) recruitment-stock relationships for young-of-the-year (YOY) and adult brook trout (*Salvelinus fontinalis*) in the 170 stream segments considered in the present analysis. Black lines represent stream segment-specific relationships, and blue lines represent averaged relationships.
+(ref:stock-recruitment-plot-cap) a) Stock-recruitment and b) recruitment-stock relationships for young-of-the-year (YOY) and adult brook trout (*Salvelinus fontinalis*) in the 170 stream segments considered in the present analysis. Black lines represent stream segment-specific relationships, and blue lines represent averaged relationships.
 
 ```{r stock-recruitment-plot, fig.cap = "(ref:stock-recruitment-plot-cap)", message=FALSE, warning=FALSE}
 plot_grid(SSR_2.plot,
@@ -305,7 +319,7 @@ plot_grid(SSR_2.plot,
 
 (ref:CVs-plot-cap) Overall and stream segment-specific coefficients of variation (CV) in observed pass 1 abundance of young-of-the-year brook trout (\textit{Salvelinus fontinalis}). The dark black line represents the median, black box the interquartile range, and the whiskers the lowest/highest values within 1.5 times the interquartile range. Outliers beyond that range are represented by black dots.
 
-```{r CVs-plot, fig.cap= "(ref:CVs-plot-cap)"}
+```{r CVs-plot, fig.cap="(ref:CVs-plot-cap)"}
 CVs.plot
 ```
 
