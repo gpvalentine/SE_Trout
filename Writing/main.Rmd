@@ -5,11 +5,11 @@ author:
   - Xinyi Lu, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University
   - Evan S. Childress, Shenandoah National Park
   - C. Andrew Dolloff, U.S. Forest Service Southern Research Station
-  - Nathanial P. Hitt, U.S. Geological Survey Eastern Ecological Science Center
+  - Nathaniel P. Hitt, U.S. Geological Survey Eastern Ecological Science Center
   - Matthew A. Kulp, Great Smoky Mountains National Park
   - Benjamin H. Letcher, U.S. Geological Survey Eastern Ecological Science Center
   - Kasey C. Pregler, Dept. of Env. Science, Policy, & Management, University of California Berkeley
-  - Jacob M. Rash, North Carolina Wildlife Resources Comission
+  - Jacob M. Rash, North Carolina Wildlife Resources Commission
   - Mevin B. Hooten, Dept. Statistics & Data Sciences, The University of Texas at Austin
   - Yoichiro Kanno, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University, yoichiro.kanno@colostate.edu
 date: "`r Sys.Date()`"
@@ -38,8 +38,6 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, warning = F, message = F)
-
 # load required R packages
 library(tidyverse)    # For tidy data management
 library(here)         # For auto-locating files within the working directory
@@ -56,6 +54,12 @@ library(latex2exp)    # For writing special characters in plot labels
 library(MCMCvis)      # MCMC tools
 library(kableExtra)   # For formatting tables
 library(tinytex)
+
+knitr::opts_chunk$set(echo = F,
+                      tidy = T,
+                      warning = F,
+                      message = F,
+                      tidy.opts=list(width.cutoff=50))
 
 # Save the directory from which to pull results files
 run_dir <- here::here("results", params$run_name)
@@ -104,7 +108,7 @@ load(file = file.path(run_dir, "tables.rdata"))
 \newpage
 
 # Acknowledgements
-We thank the numerous agencies and organizations who provided the data utilized in this study. Without the hard work of numerous biologists, technicians, and volunteers, this study would not have been possible.
+We thank the numerous agencies and organizations that provided the data utilized in this study. Without the hard work of numerous biologists, technicians, and volunteers, this study would not have been possible. This research was funded by Cooperative Agreement No. G21AC10205 from the U.S. Geological Survey Southeast Climate Adaptation Science Center, and Cooperative Agreement No. F20AC11372 from the U.S. Fish and Wildlife Service. The findings and conclusions in this report are those of the authors and do not necessarily represent the views of the U.S. Fish and Wildlife Service.
 
 \newpage
 
