@@ -109,14 +109,31 @@ YOY_BKT_passCounts <- SE_Ind_Final %>%
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
   right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
-  group_by(COMID,
-           Year,
-           Source) %>% 
-  summarise(P1_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 1), # Filter here for YOY BKT
+  left_join(SE_Sample_Final[,c("SampleID", "NumPasses")]) %>% # join in the number of passes taken at each sample
+  group_by(SampleID) %>% 
+  summarize(COMID = first(COMID),
+            Year = first(Year),
+            Source = first(Source),
+            NumPasses = first(NumPasses),
+            P1_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 1), # Filter here for YOY BKT
             P2_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 2),
             P3_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 3)) %>% 
   ungroup()
+
+# where only one pass was conducted, set counts for p2 and p3 to NA
+YOY_BKT_passCounts[which(YOY_BKT_passCounts$NumPasses == 1) ,c("P2_Count_YOY", "P3_Count_YOY")] <- NA
+
+# Now summarize by year, source, and COMID
+YOY_BKT_passCounts <- YOY_BKT_passCounts %>% 
+  group_by(COMID,
+           Year,
+           Source) %>% 
+  summarise(P1_Count_YOY = sum(P1_Count_YOY), 
+            P2_Count_YOY = sum(P2_Count_YOY),
+            P3_Count_YOY = sum(P3_Count_YOY)) %>% 
+  ungroup()
   #.[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
+
 
 
       # what's the proportion of segments that have multiple sites in them?
@@ -191,14 +208,29 @@ Adult_BKT_passCounts <- SE_Ind_Final %>%
   left_join(SE_Site_Final[,c("SiteID", "COMID")]) %>% # Join in COMIDs
   mutate(Year = year(Date)) %>% 
   right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
-  group_by(COMID,
-           Year,
-           Source) %>% 
-  summarise(P1_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 1), # Filter here for adult BKT
+  left_join(SE_Sample_Final[,c("SampleID", "NumPasses")]) %>% # join in the number of passes taken at each sample
+  group_by(SampleID) %>% 
+  summarize(COMID = first(COMID),
+            Year = first(Year),
+            Source = first(Source),
+            NumPasses = first(NumPasses),
+            P1_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 1), # Filter here for YOY BKT
             P2_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 2),
             P3_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 3)) %>% 
   ungroup()
-  #.[!duplicated(.[,c(1:2,4:6)]),] # remove any duplicate rows not already cleaned from the data
+
+# where only one pass was conducted, set counts for p2 and p3 to NA
+Adult_BKT_passCounts[which(Adult_BKT_passCounts$NumPasses == 1) ,c("P2_Count_adult", "P3_Count_adult")] <- NA
+
+# Now summarize by year, source, and COMID
+Adult_BKT_passCounts <- Adult_BKT_passCounts %>% 
+  group_by(COMID,
+           Year,
+           Source) %>% 
+  summarise(P1_Count_adult = sum(P1_Count_adult), 
+            P2_Count_adult = sum(P2_Count_adult),
+            P3_Count_adult = sum(P3_Count_adult)) %>% 
+  ungroup()
 
 # Matt Kulp sent a file that includes a list of sites where exotic salmonids were removed and BKT were stocked to restore the stream.
 # Obviously we don't want
@@ -1537,6 +1569,24 @@ segments_map.plot <- ggplot() +
   theme_classic() + 
   theme(text = element_text(family =  "serif"))
 
+# for presentations
+# ggplot() +
+#   geom_polygon(data = US_states,
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = segment_data,
+#              aes(x = Long, y = Lat, color = Agency), alpha = 0.5) +
+#   geom_hline(aes(yintercept = 37.13),
+#              linetype = "dashed") +
+#   coord_map("albers",
+#             parameters = c(29.5, 45.5),
+#             xlim = c(-83.75, -71),
+#             ylim = c(33, 41.7)) +
+#   labs(color = "") +
+#   scale_color_brewer(palette = "Set1") +
+#   theme_void() +
+#   theme(legend.position = "none")
+
 # make north and south versions too
 segment_data_N <- segment_data %>% 
   filter(COMID %in% N_Sites$COMID)
@@ -1917,6 +1967,26 @@ YOY_ICC_map.plot <- ggplot() +
   theme_classic()  
   #theme(text = element_text(family =  "serif"))
 
+# # plot for presentations
+# ggplot() +
+#   geom_polygon(data = US_states,
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = YOY_ICCs.table,
+#           aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
+#   geom_point(data = head(arrange(YOY_ICCs.table, mean), 5),
+#              aes(x = Long, y = Lat), shape = 3) + # crosses
+#   geom_segment(aes(x = -85, xend = -75,
+#                    y = 37.13, yend = 37.13),
+#              linetype = "dashed") +
+#   coord_map("albers",
+#             parameters = c(29.5, 45.5),
+#             xlim = c(-83.75, -71),
+#             ylim = c(33, 41.7)) +
+#   labs(color = "ICC") +
+#   scale_color_viridis(option = "H") +
+#   theme_void()
+
 # Adult
 Adult_ICC_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
@@ -1924,6 +1994,8 @@ Adult_ICC_map.plot <- ggplot() +
                color = "black", fill = NA) +
   geom_point(data = Adult_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
+  geom_point(data = head(arrange(Adult_ICCs.table, mean), 5),
+             aes(x = Long, y = Lat), shape = 3) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -1983,7 +2055,13 @@ ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>%
          -RtnDiv,
          -VPUIn,
          -VPUOut,
-         -Tidal)
+         -Tidal,
+         -ToNode,
+         -FromNode,
+         -LevelPathI,
+         -DnLevelPat,
+         -TerminalPa,
+         -Lat.y)
 
 YOY_ICC_corrPlot <- corrplot(cor(ICC_corr_data , method="spearman", use="pairwise.complete.obs"))
 # get values
@@ -2138,20 +2216,6 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
                     limits = c("N+S", "N", "S")) +
   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
 
-# cov_effects.plot <- ggplot(mu.beta_samples.table %>% filter(subregion == "N+S")) +
-#   geom_violin(aes(x = sample_val,
-#                   y = fct_rev(covar)),
-#               trim = F,
-#               alpha = 0.75,
-#               color = NA,
-#               fill = "#1b9e77") +
-#   facet_grid(life_stage ~ .) +
-#   geom_vline(xintercept = 0, linetype = "dashed", size = 0.5) +
-#   theme_classic() +
-#   labs(x = "Value",
-#        y = element_blank()) +
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
-
 # map betas (segment-specific covariate effects) in space
 YOY_climate_effects.table <- rbind(YOY_climateEffects_params %>% 
                                      rownames_to_column(., "param") %>% 
@@ -2175,26 +2239,6 @@ YOY_climate_effects.table$covar <- factor(YOY_climate_effects.table$covar, c("Su
 
 library(latex2exp)
 
-# YOY_climate_effects_map.plot <- ggplot() +
-#   geom_polygon(data = US_states, 
-#                aes(x = long, y = lat, group = group),
-#                color = "black", fill = NA) +
-#   geom_point(data = YOY_climate_effects.table, 
-#              aes(x = Long, y = Lat, color = mean), 
-#              alpha = 0.5) +
-#   coord_map("bonne",
-#             lat0 = 40,
-#             xlim = c(-85, -76),
-#             ylim = c(34.5, 40)) +
-#   labs(x = "Long",
-#        y = "Lat",
-#        color = TeX(r'($\beta$ Value)')) +
-#   scale_color_viridis_c() +
-#   theme_classic() +
-#   facet_grid(. ~ covar)
-
-
-
 YOY_SummTemp_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
                aes(x = long, y = lat, group = group),
@@ -2202,23 +2246,34 @@ YOY_SummTemp_betas.plot <- ggplot() +
   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
              aes(x = Long, y = Lat, color = mean),
              alpha = 0.5) +
-             #shape=1) +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -76),
             ylim = c(34.8, 39.7)) +
-  # coord_map("bonne",
-  #           lat0 = 40,
-  #           xlim = c(-82, -76),
-  #           ylim = c(37.13, 40)) +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
   scale_color_viridis(option = "H") +
   theme_classic() 
-  # theme(axis.ticks.x=element_blank(),
-  #       axis.text.x=element_blank(),
-  #       axis.title.x=element_blank())
+
+# # plot for presentations
+# ggplot() +
+#   geom_polygon(data = US_states,
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
+#              aes(x = Long, y = Lat, color = mean),
+#              alpha = 0.5) +
+#   geom_segment(aes(x = -85, xend = -75,
+#                    y = 37.13, yend = 37.13),
+#              linetype = "dashed") +
+#   coord_map("albers",
+#             parameters = c(29.5, 45.5),
+#             xlim = c(-83.75, -76),
+#             ylim = c(33, 41.7)) +
+#   labs(color = TeX(r'($\beta$ Value)')) +
+#   scale_color_viridis(option = "H") +
+#   theme_void()
 
 YOY_WintFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2236,9 +2291,25 @@ YOY_WintFlow_betas.plot <- ggplot() +
        color = TeX(r'($\beta$ Value)')) +
   scale_color_viridis(option = "H") +
   theme_classic() 
-  # theme(axis.ticks.x=element_blank(),
-  #       axis.text.x=element_blank(),
-  #       axis.title.x=element_blank())
+
+# # plot for presentations
+# ggplot() +
+#   geom_polygon(data = US_states,
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Winter Flow",],
+#              aes(x = Long, y = Lat, color = mean),
+#              alpha = 0.5) +
+#   geom_segment(aes(x = -85, xend = -75,
+#                    y = 37.13, yend = 37.13),
+#              linetype = "dashed") +
+#   coord_map("albers",
+#             parameters = c(29.5, 45.5),
+#             xlim = c(-83.75, -76),
+#             ylim = c(33, 41.7)) +
+#   labs(color = TeX(r'($\beta$ Value)')) +
+#   scale_color_viridis(option = "H") +
+#   theme_void()
 
 YOY_SprFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2256,6 +2327,25 @@ YOY_SprFlow_betas.plot <- ggplot() +
        color = TeX(r'($\beta$ Value)')) +
   scale_color_viridis(option = "H") +
   theme_classic()
+
+# plot for presentations
+# ggplot() +
+#   geom_polygon(data = US_states,
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Spring Flow",],
+#              aes(x = Long, y = Lat, color = mean),
+#              alpha = 0.5) +
+#   geom_segment(aes(x = -85, xend = -75,
+#                    y = 37.13, yend = 37.13),
+#                linetype = "dashed") +
+#   coord_map("albers",
+#             parameters = c(29.5, 45.5),
+#             xlim = c(-83.75, -76),
+#             ylim = c(33, 41.7)) +
+#   labs(color = TeX(r'($\beta$ Value)')) +
+#   scale_color_viridis(option = "H") +
+#   theme_void()
 
 ####
 # plots of first-pass trout count versus each climate covariate where each segment = each line
