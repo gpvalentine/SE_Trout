@@ -44,14 +44,16 @@ BKT_Sites <- SE_Ind_Final %>%
          pct_BKT >= 10)
 
 # create a crosswalk file to associate the agency with the source of the data
-source_agency_crosswalk <- data.frame(Source = unique(SE_Site_Final$Source),
+source_agency_crosswalk <- data.frame(Agency = unique(SE_Site_Final$Agency),
                                       Agency = c("GA Dept. Natural Resources",
                                                  "Great Smoky Mountain Nat'l Park",
                                                  "ME Dept. Inland Fisheries & Wildlife",
                                                  "MD Dept. Natural Resources",
                                                  "NC Wildlife Resources Commission",
                                                  "Shenandoah Nat'l Park",
-                                                 "US Geological Survey",
+                                                 "GA Dept. Natural Resources",
+                                                 "MD Dept. Natural Resources",
+                                                 "SC Dept. Natural Resources",
                                                  "Clemson Univ.",
                                                  "TN Wildlife Resources Agency",
                                                  "TN Wildlife Resources Agency",
@@ -65,6 +67,7 @@ source_agency_crosswalk <- data.frame(Source = unique(SE_Site_Final$Source),
 
 # COMID/Site data for model
 sample_areas <- SE_Sample_Final %>% 
+  left_join(source_agency_crosswalk) %>% 
   left_join(SE_Site_Final[,c("SiteID", "COMID", "Lat", "Long", "Length_m", "Width_m")], by = "SiteID") %>% 
   filter(SiteID %in% BKT_Sites$SiteID, # filter for just the sites with records of BKT
          Lat <= 39.716667, # filter for just sites south of the Mason-Dixon Line
@@ -72,8 +75,8 @@ sample_areas <- SE_Sample_Final %>%
          COMID %in% SE_COMID_temp_covars$COMID) %>% # same goes for temperature - there's one site in Maine with no temp
   group_by(COMID,
            Year = year(Date),
-           Source) %>% 
-  summarise(Area_Sampled = sum(Length_m * Width_m)) %>%  # Calculates the sum of site areas within the stream segment that were sampled that year by that source
+           Agency) %>% 
+  summarise(Area_Sampled = sum(Length_m * Width_m)) %>%  # Calculates the sum of site areas within the stream segment that were sampled that year by that agency
   filter(Year >= 1981, # Filter to one year after the earliest year that we have temperature data
          Year <= 2015,    # Filter to the latest year that we have flow data
          !is.na(Area_Sampled)) %>% 
@@ -84,7 +87,7 @@ sample_areas <- SE_Sample_Final %>%
 #   filter(SiteID %in% BKT_Sites$SiteID) %>%  # Filter to sites with records of BKT
 #   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
 #   mutate(Year = year(Date)) %>% 
-#   dplyr::select(COMID, Year, Source) %>% 
+#   dplyr::select(COMID, Year, Agency) %>% 
 #   unique() %>% 
 #   filter(COMID %in% sample_areas$COMID, # Filter because we can only use data from COMIDs with area and coordinates
 #          !is.na(COMID),
@@ -94,8 +97,9 @@ sample_areas <- SE_Sample_Final %>%
 # What was the percentage of single- vs multipass electrofishing?
 passes_pcts.table <- SE_Sample_Final %>% 
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+  left_join(source_agency_crosswalk) %>% 
   mutate(Year = year(Date)) %>% # create a year column
-  inner_join(sample_areas) %>%  # use an inner join to filter for only segment-source-year combos that have areas
+  inner_join(sample_areas) %>%  # use an inner join to filter for only segment-agency-year combos that have areas
   filter(!is.na(NumPasses)) %>%
   mutate(Multipass = ifelse(NumPasses > 1, 1, 0)) %>% 
   group_by(Multipass) %>% 
@@ -107,13 +111,15 @@ passes_pcts.table <- SE_Sample_Final %>%
 # Tally YOY counts by pass at each COMID, year combination
 YOY_BKT_passCounts <- SE_Ind_Final %>% 
   left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+  left_join(source_agency_crosswalk) %>% # join in agency name
   mutate(Year = year(Date)) %>% 
-  right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
+  right_join(sample_areas) %>%  # use a right join to filter for only segment-agency-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
   left_join(SE_Sample_Final[,c("SampleID", "NumPasses")]) %>% # join in the number of passes taken at each sample
+  filter(!is.na(NumPasses)) %>% 
   group_by(SampleID) %>% 
   summarize(COMID = first(COMID),
             Year = first(Year),
-            Source = first(Source),
+            Agency = first(Agency),
             NumPasses = first(NumPasses),
             P1_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 1), # Filter here for YOY BKT
             P2_Count_YOY = sum(SPP == "BKT" & TL_mm <= 90 & PassNo == 2),
@@ -123,11 +129,11 @@ YOY_BKT_passCounts <- SE_Ind_Final %>%
 # where only one pass was conducted, set counts for p2 and p3 to NA
 YOY_BKT_passCounts[which(YOY_BKT_passCounts$NumPasses == 1) ,c("P2_Count_YOY", "P3_Count_YOY")] <- NA
 
-# Now summarize by year, source, and COMID
+# Now summarize by year, agency, and COMID
 YOY_BKT_passCounts <- YOY_BKT_passCounts %>% 
   group_by(COMID,
            Year,
-           Source) %>% 
+           Agency) %>% 
   summarise(P1_Count_YOY = sum(P1_Count_YOY), 
             P2_Count_YOY = sum(P2_Count_YOY),
             P3_Count_YOY = sum(P3_Count_YOY)) %>% 
@@ -139,10 +145,12 @@ YOY_BKT_passCounts <- YOY_BKT_passCounts %>%
       # what's the proportion of segments that have multiple sites in them?
       sites_in_segments <- SE_Sample_Final %>% 
         left_join(SE_Site_Final[,c(1,6)]) %>% # Join in COMIDs
+        left_join(source_agency_crosswalk) %>% 
         mutate(Year = year(Date)) %>% 
-        right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
+        right_join(sample_areas) %>%  # use a right join to filter for only segment-agency-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
         group_by(COMID,
-                 Year) %>% 
+                 Year,
+                 Agency) %>% 
         summarise(nSites = length(unique(SiteID)))
       
       summary(sites_in_segments$nSites)
@@ -163,9 +171,13 @@ YOY_BKT_passCounts%>%
 YOY_BKT_passCounts <- YOY_BKT_passCounts %>%
   filter(!COMID %in% GSMNP_Restored_Sites$COMID)
 
+# Make separate dataframes of count data for climate models and for random effects models
+YOY_BKT_passCounts_CE <- YOY_BKT_passCounts
+YOY_BKT_passCounts_RE <- YOY_BKT_passCounts %>% filter(!is.na(P2_Count_YOY))
+
 # YOY abundance data for model
 # Now make a separate, wide data frame for each pass
-p1_YOY <- YOY_BKT_passCounts %>% 
+p1_YOY_CE <- YOY_BKT_passCounts_CE %>% 
   dplyr::select(-P2_Count_YOY,
                 -P3_Count_YOY) %>%
   arrange(Year) %>% 
@@ -175,44 +187,79 @@ p1_YOY <- YOY_BKT_passCounts %>%
   mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>%  # count the number of years data at that site and pass
   filter(nYears_data >= 5)
 
-# save a vector of the names of the sources
-sources <- sort(unique(p1_YOY$Source))
+# save a vector of the names of the agencies
+agencies_CE <- sort(unique(p1_YOY_CE$Agency))
 
-p2_YOY <- YOY_BKT_passCounts %>% 
+p1_YOY_RE <- YOY_BKT_passCounts_RE %>% 
+  dplyr::select(-P2_Count_YOY,
+                -P3_Count_YOY) %>%
+  arrange(Year) %>% 
+  pivot_wider(names_from = Year, 
+              values_from = P1_Count_YOY) %>% 
+  arrange(COMID) %>% 
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>%  # count the number of years data at that site and pass
+  filter(nYears_data >= 5)
+
+# save a vector of the names of the agencies
+agencies_RE <- sort(unique(p1_YOY_RE$Agency))
+
+p2_YOY_CE <- YOY_BKT_passCounts_CE %>% 
   dplyr::select(-P1_Count_YOY,
                 -P3_Count_YOY) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
               values_from = P2_Count_YOY) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
-  filter(nYears_data >= 5) %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
-  relocate(COMID, Source, .after = last_col())
+  right_join(p1_YOY_CE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
 
-p3_YOY <- YOY_BKT_passCounts %>% 
+p2_YOY_RE <- YOY_BKT_passCounts_RE %>% 
+  dplyr::select(-P1_Count_YOY,
+                -P3_Count_YOY) %>% 
+  arrange(Year) %>% 
+  pivot_wider(names_from = Year, 
+              values_from = P2_Count_YOY) %>% 
+  arrange(COMID) %>% 
+  right_join(p1_YOY_RE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
+
+p3_YOY_CE <- YOY_BKT_passCounts_CE %>% 
   dplyr::select(-P1_Count_YOY,
                 -P2_Count_YOY) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
               values_from = P3_Count_YOY) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
-  filter(nYears_data >= 5) %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
-  relocate(COMID, Source, .after = last_col())
+  right_join(p1_YOY_CE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
+
+p3_YOY_RE <- YOY_BKT_passCounts_RE %>% 
+  dplyr::select(-P1_Count_YOY,
+                -P2_Count_YOY) %>% 
+  arrange(Year) %>% 
+  pivot_wider(names_from = Year, 
+              values_from = P3_Count_YOY) %>% 
+  arrange(COMID) %>% 
+  right_join(p1_YOY_RE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
 
 ## Adults
 # Tally adult counts by pass at each COMID, year combination
 Adult_BKT_passCounts <- SE_Ind_Final %>% 
   left_join(SE_Site_Final[,c("SiteID", "COMID")]) %>% # Join in COMIDs
+  left_join(source_agency_crosswalk) %>% # join in agency name
   mutate(Year = year(Date)) %>% 
-  right_join(sample_areas) %>%  # use a right join to filter for only segment-source-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
+  right_join(sample_areas) %>%  # use a right join to filter for only segment-agency-year combos that have areas. This allows for the possibility that there were samples not accounted for in SE_Ind_Final because they were taken but had no fish
   left_join(SE_Sample_Final[,c("SampleID", "NumPasses")]) %>% # join in the number of passes taken at each sample
+  filter(!is.na(NumPasses)) %>% 
   group_by(SampleID) %>% 
   summarize(COMID = first(COMID),
             Year = first(Year),
-            Source = first(Source),
+            Agency = first(Agency),
             NumPasses = first(NumPasses),
             P1_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 1), # Filter here for YOY BKT
             P2_Count_adult = sum(SPP == "BKT" & TL_mm > 90 & PassNo == 2),
@@ -222,11 +269,11 @@ Adult_BKT_passCounts <- SE_Ind_Final %>%
 # where only one pass was conducted, set counts for p2 and p3 to NA
 Adult_BKT_passCounts[which(Adult_BKT_passCounts$NumPasses == 1) ,c("P2_Count_adult", "P3_Count_adult")] <- NA
 
-# Now summarize by year, source, and COMID
+# Now summarize by year, agency, and COMID
 Adult_BKT_passCounts <- Adult_BKT_passCounts %>% 
   group_by(COMID,
            Year,
-           Source) %>% 
+           Agency) %>% 
   summarise(P1_Count_adult = sum(P1_Count_adult), 
             P2_Count_adult = sum(P2_Count_adult),
             P3_Count_adult = sum(P3_Count_adult)) %>% 
@@ -242,9 +289,13 @@ Adult_BKT_passCounts %>%
 Adult_BKT_passCounts<- Adult_BKT_passCounts %>% 
   filter(!COMID %in% GSMNP_Restored_Sites$COMID)
 
+# Make separate dataframes of count data for climate models and for random effects models
+Adult_BKT_passCounts_CE <- Adult_BKT_passCounts
+Adult_BKT_passCounts_RE <- Adult_BKT_passCounts %>% filter(!is.na(P2_Count_adult))
+
 # adult abundance data for model
 # Now make a separate, wide data frame for each pass
-p1_adult <- Adult_BKT_passCounts %>% 
+p1_adult_CE <- Adult_BKT_passCounts_CE %>% 
   dplyr::select(-P2_Count_adult,
                 -P3_Count_adult) %>% 
   arrange(Year) %>% 
@@ -252,33 +303,69 @@ p1_adult <- Adult_BKT_passCounts %>%
               values_from = P1_Count_adult) %>% 
   arrange(COMID) %>% 
   mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>%  # count the number of years data at that site and pass
-  filter(nYears_data >= 5) %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
-  relocate(COMID, Source, .after = last_col())
+  filter(nYears_data >= 5)
 
-p2_adult <- Adult_BKT_passCounts %>% 
+p1_adult_RE <- Adult_BKT_passCounts_RE %>% 
+  dplyr::select(-P2_Count_adult,
+                -P3_Count_adult) %>% 
+  arrange(Year) %>% 
+  pivot_wider(names_from = Year, 
+              values_from = P1_Count_adult) %>% 
+  arrange(COMID) %>% 
+  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>%  # count the number of years data at that site and pass
+  filter(nYears_data >= 5)
+
+p2_adult_CE <- Adult_BKT_passCounts_CE %>% 
   dplyr::select(-P1_Count_adult,
                 -P3_Count_adult) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
               values_from = P2_Count_adult) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
-  filter(nYears_data >= 5) %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
-  relocate(COMID, Source, .after = last_col())
+  right_join(p1_adult_CE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
 
-p3_adult <- Adult_BKT_passCounts %>% 
+p2_adult_RE <- Adult_BKT_passCounts_RE %>% 
+  dplyr::select(-P1_Count_adult,
+                -P3_Count_adult) %>% 
+  arrange(Year) %>% 
+  pivot_wider(names_from = Year, 
+              values_from = P2_Count_adult) %>% 
+  arrange(COMID) %>% 
+  right_join(p1_adult_RE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
+
+p3_adult_CE <- Adult_BKT_passCounts_CE %>% 
   dplyr::select(-P1_Count_adult,
                 -P2_Count_adult) %>% 
   arrange(Year) %>% 
   pivot_wider(names_from = Year, 
               values_from = P3_Count_adult) %>% 
   arrange(COMID) %>% 
-  mutate(nYears_data = rowSums(!is.na(.[,3:ncol(.)]))) %>% 
-  filter(nYears_data >= 5) %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% # change the Source column to numeric 
-  relocate(COMID, Source, .after = last_col())
+  right_join(p1_adult_CE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
+
+p3_adult_RE <- Adult_BKT_passCounts_RE %>% 
+  dplyr::select(-P1_Count_adult,
+                -P2_Count_adult) %>% 
+  arrange(Year) %>% 
+  pivot_wider(names_from = Year, 
+              values_from = P3_Count_adult) %>% 
+  arrange(COMID) %>% 
+  right_join(p1_adult_RE[,c("COMID", "Agency")]) %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
+
+p1_adult_CE <- p1_adult_CE %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
+
+p1_adult_RE <- p1_adult_RE %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% # change the Agency column to numeric 
+  relocate(COMID, Agency, .after = last_col())
 
 ## COVARIATES
 # Make wide dataframes of spatiotemporal covariates
@@ -289,7 +376,7 @@ Mean_Max_Summer_Temp_Scaled <- SE_COMID_temp_covars %>%
   dplyr::select(COMID,
                 Year,
                 Mean_Max_Summer_Temp_Scaled) %>% 
-  filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
+  filter(COMID %in% p1_YOY_CE$COMID, # Filter to just data for which we have samples
          Year %in% (YOY_BKT_passCounts$Year - 1)) %>% # filter for years which we have trout data, minus one year b/c we are using temp from the prior year
   pivot_wider(names_from = Year,
               values_from = Mean_Max_Summer_Temp_Scaled) %>% 
@@ -297,7 +384,7 @@ Mean_Max_Summer_Temp_Scaled <- SE_COMID_temp_covars %>%
 
 # use a right join to get duplicates for the COMIDs with multiple sources of data
 Mean_Max_Summer_Temp_Scaled <- Mean_Max_Summer_Temp_Scaled %>% 
-  right_join(data.frame(COMID = p1_YOY$COMID))
+  right_join(data.frame(COMID = p1_YOY_CE$COMID))
 
 # Winter flow
 Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
@@ -306,7 +393,7 @@ Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
   dplyr::select(COMID,
                 Year,
                 Max_0.9Q_WinterFlow_Scaled) %>% 
-  filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
+  filter(COMID %in% p1_YOY_CE$COMID, # Filter to just data for which we have samples
          Year %in% YOY_BKT_passCounts$Year) %>% # filter for years which we have trout data
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_WinterFlow_Scaled) %>% 
@@ -314,7 +401,7 @@ Max_0.9Q_WinterFlow_Scaled <- SE_COMID_flow_covars %>%
 
 # use a right join to get duplicates for the COMIDs with multiple sources of data
 Max_0.9Q_WinterFlow_Scaled <- Max_0.9Q_WinterFlow_Scaled %>% 
-  right_join(data.frame(COMID = p1_YOY$COMID))
+  right_join(data.frame(COMID = p1_YOY_CE$COMID))
 
 # Spring flow
 Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
@@ -323,7 +410,7 @@ Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
   dplyr::select(COMID,
                 Year,
                 Max_0.9Q_SpringFlow_Scaled) %>% 
-  filter(COMID %in% p1_YOY$COMID, # Filter to just data for which we have samples
+  filter(COMID %in% p1_YOY_CE$COMID, # Filter to just data for which we have samples
          Year %in% YOY_BKT_passCounts$Year) %>% # filter for years which we have trout data
   pivot_wider(names_from = Year,
               values_from = Max_0.9Q_SpringFlow_Scaled) %>% 
@@ -339,39 +426,61 @@ Max_0.9Q_SpringFlow_Scaled <- SE_COMID_flow_covars %>%
 
 # use a right join to get duplicates for the COMIDs with multiple sources of data
 Max_0.9Q_SpringFlow_Scaled <- Max_0.9Q_SpringFlow_Scaled %>% 
-  right_join(data.frame(COMID = p1_YOY$COMID))
+  right_join(data.frame(COMID = p1_YOY_CE$COMID))
 
 # Filter the sample areas data for just those with fish observations in the time frame of interest
 # use a right join to get duplicates for the COMIDs with multiple sources of data
 # Then pivot wider to include it in the model
-sample_areas_wide <- sample_areas %>% 
+sample_areas_wide_CE <- sample_areas %>% 
   pivot_wider(names_from = Year, 
               values_from = Area_Sampled) %>% 
   arrange(COMID) %>% 
   relocate(COMID, .after = last_col()) %>%  # move the info columns to the end of the df to allow subsetting by year in the model
-  right_join(p1_YOY[,c("COMID", "Source")]) %>% # use a right join to filter for areas of the years AND sources where fish were caught
-  dplyr::select(-Source)
+  right_join(p1_YOY_CE[,c("COMID", "Agency")]) %>% # use a right join to filter for areas of the years AND agencies where fish were caught
+  dplyr::select(-Agency) %>% 
+  .[,sort(colnames(.))] # arrange the columns (years)
+
+sample_areas_wide_RE <- sample_areas %>% 
+  pivot_wider(names_from = Year, 
+              values_from = Area_Sampled) %>% 
+  arrange(COMID) %>% 
+  relocate(COMID, .after = last_col()) %>%  # move the info columns to the end of the df to allow subsetting by year in the model
+  right_join(p1_YOY_RE[,c("COMID", "Agency")]) %>% # use a right join to filter for areas of the years AND sources where fish were caught
+  dplyr::select(-Agency) %>% 
+  .[,sort(colnames(.))] # arrange the columns (years)
 
 # the sample areas cannot have missing values, 
 # so we impute any segment-year that is missing a sample area as the average sample area for that segment.
 # calculate the average sample area of each segment
-mean_areas <- (rowSums(sample_areas_wide[,1:ncol(sample_areas_wide)-1], na.rm = T)/apply(!is.na(sample_areas_wide[,1:ncol(sample_areas_wide)-1]), MARGIN = 1, sum))
+mean_areas_CE <- (rowSums(sample_areas_wide_CE[,1:ncol(sample_areas_wide_CE)-1], na.rm = T)/apply(!is.na(sample_areas_wide_CE[,1:ncol(sample_areas_wide_CE)-1]), MARGIN = 1, sum))
+mean_areas_RE <- (rowSums(sample_areas_wide_RE[,1:ncol(sample_areas_wide_RE)-1], na.rm = T)/apply(!is.na(sample_areas_wide_RE[,1:ncol(sample_areas_wide_RE)-1]), MARGIN = 1, sum))
 
 # then replace the NAs with the average sample area at that segment
-for (i in 1:nrow(sample_areas_wide)) {
-  sample_areas_wide[i,][is.na(sample_areas_wide[i,])] <- mean_areas[i]
+for (i in 1:nrow(sample_areas_wide_CE)) {
+  sample_areas_wide_CE[i,][is.na(sample_areas_wide_CE[i,])] <- mean_areas_CE[i]
+  print(i)
+}
+for (i in 1:nrow(sample_areas_wide_RE)) {
+  sample_areas_wide_RE[i,][is.na(sample_areas_wide_RE[i,])] <- mean_areas_RE[i]
   print(i)
 }
 
-# and change the Source column to numeric 
-p1_YOY <- p1_YOY %>% 
-  mutate(Source = as.numeric(as.factor(Source))) %>% 
-  relocate(COMID, Source, .after = last_col()) # move the info columns to the end of the df to allow subsetting by year in the model
+# and change the Agency column to numeric 
+p1_YOY_CE <- p1_YOY_CE %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% 
+  relocate(COMID, Agency, .after = last_col()) # move the info columns to the end of the df to allow subsetting by year in the model
+p1_YOY_RE <- p1_YOY_RE %>% 
+  mutate(Agency = as.numeric(as.factor(Agency))) %>% 
+  relocate(COMID, Agency, .after = last_col()) # move the info columns to the end of the df to allow subsetting by year in the model
+
 
 # Set sample sizes
-nReps <- nrow(p1_YOY)
-nYears <- ncol(p1_YOY) - 3 # subtract 3 b/c the last three columns have info, not counts
-nSources <- length(unique(p1_YOY$Source))
+nReps_CE <- nrow(p1_YOY_CE)
+nReps_RE <- nrow(p1_YOY_RE)
+nYears_CE <- ncol(p1_YOY_CE) - 3 # subtract 3 b/c the last three columns have info, not counts
+nYears_RE <- ncol(p1_YOY_RE) - 3 # subtract 3 b/c the last three columns have info, not counts
+nAgencies_CE <- length(unique(p1_YOY_CE$Agency))
+nAgencies_RE <- length(unique(p1_YOY_RE$Agency))
 
 ########################################
 # two models each for YOY and adults: one with just climate effects and one with just the two random effects
@@ -411,8 +520,8 @@ model{
   }
   
   ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
+  # p.j - detection probability for each agency
+  for (j in 1:nAgencies) {
       p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
     }
   
@@ -433,11 +542,11 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
     # Pass 1
-    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+    p1_YOY[i,t] ~ dbin(p[Agencies[i]], N.YOY[i,t])
     # Pass 2
-    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
+    p2_YOY[i,t] ~ dbin(p[Agencies[i]], (N.YOY[i,t] - p1_YOY[i,t]))
     # Pass 3
-    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
+    p3_YOY[i,t] ~ dbin(p[Agencies[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
     }
   }
   
@@ -446,7 +555,7 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
       # Pass 1
-      p1_YOY.new[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+      p1_YOY.new[i,t] ~ dbin(p[Agencies[i]], N.YOY[i,t])
     }
   }
   
@@ -464,37 +573,37 @@ model{
 sink()
 
 # Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
+jags_data <- list(nReps = nReps_CE, 
+                  nYears = nYears_CE,
+                  nAgencies = nAgencies_CE,
+                  Area = sample_areas_wide_CE,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
-                  p1_YOY = p1_YOY,
-                  p2_YOY = p2_YOY, 
-                  p3_YOY = p3_YOY,
-                  Sources = p1_YOY$Source)
+                  p1_YOY = p1_YOY_CE,
+                  p2_YOY = p2_YOY_CE, 
+                  p3_YOY = p3_YOY_CE,
+                  Agencies = p1_YOY_CE$Agency)
 
 
 # Parameters to save
 jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1", "N.YOY")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
+N.YOY.inits <- array(numeric(), dim = c(nReps_CE, nYears_CE))
+for (i in 1:nReps_CE) {
+  for (t in 1:nYears_CE) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_YOY_CE[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2)))
+                                                sum(p1_YOY_CE[i,t], p2_YOY_CE[i,t], p3_YOY_CE[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_CE, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources),
+                             p = rep(0.5, times = nAgencies_CE),
                              N.YOY = N.YOY.inits)
 
 
@@ -526,26 +635,12 @@ YOY_climateEffects_params %>%
   .[,2] %>% 
   range()
 
-MCMCtrace(YOY_climateEffects, params = "N.YOY", pdf = F)
+#MCMCtrace(YOY_climateEffects, params = "N.YOY", pdf = F)
 
-# plot abundance over time
+# get abundance over time
 N.YOY_climateEffects <- MCMCsummary(YOY_climateEffects,
                                     func = "median",
                                     HPD = T, params = "N.YOY")
-
-N.YOY_climateEffects.table <- N.YOY_climateEffects %>%
-  rownames_to_column(., "param") %>% 
-  mutate(SegmentNo = as.numeric(str_extract(param, "[:digit:]+")),
-         YearNo = as.numeric(str_extract(param, "(?<=,)[:digit:]+"))) %>% 
-  left_join(cbind(COMID = p1_YOY$COMID, data.frame(SegmentNo = seq(1,170)))) %>% 
-  
-  filter(func < 1000)
-
-ggplot(N.YOY_climateEffects.table) +
-  geom_line(aes(x = YearNo,
-                y = log(func + 1),
-                group = SegmentNo)) +
-  theme_classic()
 
 ## YOY model with just random effects
 sink("Analysis/nMix_JAGS_files/YOY_randomEffects.jags")
@@ -556,7 +651,7 @@ model{
   
   ## Site fixed effect
   for (i in 1:nReps){
-    omega[i] ~ dnorm(0, 0.001)
+    omega[i] ~ dnorm(0, 0.1)
   }
   
   ## Random Effects
@@ -583,8 +678,8 @@ model{
   }
   
   ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
+  # p.j - detection probability for each agemcy
+  for (j in 1:nAgencies) {
       p[j] ~ dbeta(((0.5^2 - 0.5^3 - (0.5 * 0.1^2))/0.1^2), ((0.5 - (2*0.5^2) + 0.5^3 - 0.1^2 + (0.5 * 0.1^2))/0.1^2)) # moment matching for mean 0.5 and variance 0.1
     }
   
@@ -605,11 +700,11 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
     # Pass 1
-    p1_YOY[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+    p1_YOY[i,t] ~ dbin(p[Agencies[i]], N.YOY[i,t])
     # Pass 2
-    p2_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t]))
+    p2_YOY[i,t] ~ dbin(p[Agencies[i]], (N.YOY[i,t] - p1_YOY[i,t]))
     # Pass 3
-    p3_YOY[i,t] ~ dbin(p[Sources[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
+    p3_YOY[i,t] ~ dbin(p[Agencies[i]], (N.YOY[i,t] - p1_YOY[i,t] - p2_YOY[i,t]))
     }
   }
 
@@ -634,7 +729,7 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
       # Pass 1
-      p1_YOY.new[i,t] ~ dbin(p[Sources[i]], N.YOY[i,t])
+      p1_YOY.new[i,t] ~ dbin(p[Agencies[i]], N.YOY[i,t])
     }
   }
 
@@ -652,36 +747,36 @@ model{
 sink()
 
 # Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  p1_YOY = p1_YOY,
-                  p2_YOY = p2_YOY, 
-                  p3_YOY = p3_YOY,
-                  Sources = p1_YOY$Source)
+jags_data <- list(nReps = nReps_RE, 
+                  nYears = nYears_RE,
+                  nAgencies = nAgencies_RE,
+                  Area = sample_areas_wide_RE,
+                  p1_YOY = p1_YOY_RE,
+                  p2_YOY = p2_YOY_RE, 
+                  p3_YOY = p3_YOY_RE,
+                  Agencies = p1_YOY_RE$Agency)
 
 
 # Parameters to save
-jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1", "CV.p1", "CV.p1_all", "N.YOY")
+jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1", "N.YOY")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t])),
+N.YOY.inits <- array(numeric(), dim = c(nReps_RE, nYears_RE))
+for (i in 1:nReps_RE) {
+  for (t in 1:nYears_RE) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_YOY_RE[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_YOY[i,t] + p2_YOY[i,t] + p3_YOY[i,t] + 1) * 2)))
+                                                sum(p1_YOY_RE[i,t], p2_YOY_RE[i,t], p3_YOY_RE[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_RE, 0, 0.1),
                              sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
+                             eps = rnorm(nYears_RE, 0, 10),
+                             sd.gam = runif(nReps_RE, 0, 10),
+                             gam = array(rnorm(nReps_RE * nYears_RE, 0, 10), dim = c(nReps_RE, nYears_RE)),
+                             p = rep(0.5, times = nAgencies_RE),
                              N.YOY = N.YOY.inits)
 
 
@@ -690,8 +785,6 @@ ni <- 50000
 nc <- 3
 nb <- 20000
 nt <- 1
-
-set.seed(1234)
 
 # Fit Model
 YOY_randomEffects <- jagsUI::jags(data = jags_data,
@@ -706,10 +799,10 @@ YOY_randomEffects <- jagsUI::jags(data = jags_data,
 
 YOY_randomEffects_params <- MCMCsummary(YOY_randomEffects, HPD = T, excl = "N.YOY")
 
-MCMCtrace(YOY_randomEffects, params = "N.YOY", pdf = F)
+#MCMCtrace(YOY_randomEffects, params = "omega", pdf = F)
 
 # plot abundance over time
-N.YOY_randomEffects <- MCMCsummary(YOY_randomEffects, HPD = T, params = "N.YOY")
+#N.YOY_randomEffects <- MCMCsummary(YOY_randomEffects, HPD = T, params = "N.YOY")
 
 ### Adults
 # Adult model with just env. covariates
@@ -747,8 +840,8 @@ model{
   }
   
   ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
+  # p.j - detection probability for each agency
+  for (j in 1:nAgencies) {
       p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
     }
   
@@ -769,11 +862,11 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
     # Pass 1
-    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+    p1_adult[i,t] ~ dbin(p[Agencies[i]], N.adult[i,t])
     # Pass 2
-    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
+    p2_adult[i,t] ~ dbin(p[Agencies[i]], (N.adult[i,t] - p1_adult[i,t]))
     # Pass 3
-    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
+    p3_adult[i,t] ~ dbin(p[Agencies[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
     }
   }
   
@@ -782,7 +875,7 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
       # Pass 1
-      p1_adult.new[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+      p1_adult.new[i,t] ~ dbin(p[Agencies[i]], N.adult[i,t])
     }
   }
   
@@ -800,37 +893,37 @@ model{
 sink()
 
 # Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
+jags_data <- list(nReps = nReps_CE, 
+                  nYears = nYears_CE,
+                  nAgencies = nAgencies_CE,
+                  Area = sample_areas_wide_CE,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled,
-                  p1_adult = p1_adult,
-                  p2_adult = p2_adult, 
-                  p3_adult = p3_adult,
-                  Sources = p1_adult$Source)
+                  p1_adult = p1_adult_CE,
+                  p2_adult = p2_adult_CE, 
+                  p3_adult = p3_adult_CE,
+                  Agencies = p1_adult_CE$Agency)
 
 
 # Parameters to save
-jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
+jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1", "N.adult")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
+N.adult.inits <- array(numeric(), dim = c(nReps_CE, nYears_CE))
+for (i in 1:nReps_CE) {
+  for (t in 1:nYears_CE) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_adult_CE[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2)))
+                                                sum(p1_adult_CE[i,t], p2_adult_CE[i,t], p3_adult_CE[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_CE, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources),
+                             p = rep(0.5, times = nAgencies_CE),
                              N.adult = N.adult.inits)
 
 
@@ -853,7 +946,7 @@ Adult_climateEffects <- jagsUI::jags(data = jags_data,
                                    parallel = T,
                                    inits = init_vals)
 
-Adult_climateEffects_params <- MCMCsummary(Adult_climateEffects, HPD = T)
+Adult_climateEffects_params <- MCMCsummary(Adult_climateEffects, HPD = T, excl = "N.adult")
 
 # What was the range of covariate effects on adult abundance?
 Adult_climateEffects_params %>% 
@@ -861,6 +954,10 @@ Adult_climateEffects_params %>%
   filter(str_detect(param, "^beta\\[3")) %>% 
   .[,2] %>% 
   range()
+
+N.adult_climateEffects <- MCMCsummary(Adult_climateEffects,
+                                    func = "median",
+                                    HPD = T, params = "N.adult")
 
 ## Adult model with just random effects
 sink("Analysis/nMix_JAGS_files/Adult_randomEffects.jags")
@@ -898,8 +995,8 @@ model{
   }
   
   ## Detection probability
-  # p.j - detection probability for each source
-  for (j in 1:nSources) {
+  # p.j - detection probability for each agency
+  for (j in 1:nAgencies) {
       p[j] ~ dbeta(((0.65^2 - 0.65^3 - (0.65 * 0.1^2))/0.1^2), ((0.65 - (2*0.65^2) + 0.65^3 - 0.1^2 + (0.65 * 0.1^2))/0.1^2)) # moment matching for mean 0.65 and variance 0.1
     }
   
@@ -920,11 +1017,11 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
     # Pass 1
-    p1_adult[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+    p1_adult[i,t] ~ dbin(p[Agencies[i]], N.adult[i,t])
     # Pass 2
-    p2_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t]))
+    p2_adult[i,t] ~ dbin(p[Agencies[i]], (N.adult[i,t] - p1_adult[i,t]))
     # Pass 3
-    p3_adult[i,t] ~ dbin(p[Sources[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
+    p3_adult[i,t] ~ dbin(p[Agencies[i]], (N.adult[i,t] - p1_adult[i,t] - p2_adult[i,t]))
     }
   }
 
@@ -949,7 +1046,7 @@ model{
   for (i in 1:nReps) {
     for (t in 1:nYears) {
       # Pass 1
-      p1_adult.new[i,t] ~ dbin(p[Sources[i]], N.adult[i,t])
+      p1_adult.new[i,t] ~ dbin(p[Agencies[i]], N.adult[i,t])
     }
   }
   
@@ -967,36 +1064,36 @@ model{
 sink()
 
 # Bundle data
-jags_data <- list(nReps = nReps, 
-                  nYears = nYears,
-                  nSources = nSources,
-                  Area = sample_areas_wide,
-                  p1_adult = p1_adult,
-                  p2_adult = p2_adult, 
-                  p3_adult = p3_adult,
-                  Sources = p1_adult$Source)
+jags_data <- list(nReps = nReps_RE, 
+                  nYears = nYears_RE,
+                  nAgencies = nAgencies_RE,
+                  Area = sample_areas_wide_RE,
+                  p1_adult = p1_adult_RE,
+                  p2_adult = p2_adult_RE, 
+                  p3_adult = p3_adult_RE,
+                  Agencies = p1_adult_RE$Agency)
 
 
 # Parameters to save
 jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps, nYears))
-for (i in 1:nReps) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t])),
-                                                rpois(1, lambda = 200),
-                                                (p1_adult[i,t] + p2_adult[i,t] + p3_adult[i,t] + 1) * 2)))
+N.adult.inits <- array(numeric(), dim = c(nReps_RE, nYears_RE))
+for (i in 1:nReps_RE) {
+  for (t in 1:nYears_RE) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_adult_RE[i,t]),
+                                                  rpois(1, lambda = 200),
+                                                  sum(p1_adult_RE[i,t], p2_adult_RE[i,t], p3_adult_RE[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_RE, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps, 0, 10),
-                             gam = array(rnorm(nReps * nYears, 0, 10), dim = c(nReps, nYears)),
-                             p = rep(0.5, times = nSources),
+                             eps = rnorm(nYears_RE, 0, 10),
+                             sd.gam = runif(nReps_RE, 0, 10),
+                             gam = array(rnorm(nReps_RE * nYears_RE, 0, 10), dim = c(nReps_RE, nYears_RE)),
+                             p = rep(0.5, times = nAgencies_RE),
                              N.adult = N.adult.inits)
 
 
@@ -1007,6 +1104,7 @@ nb <- 20000
 nt <- 1
 
 set.seed(1234)
+save.image()
 
 # Fit Model
 Adult_randomEffects <- jagsUI::jags(data = jags_data,
@@ -1036,37 +1134,69 @@ S_Sites <- SE_Site_Final %>%
   select(COMID)
 
 # filter data to these regions
-p1_YOY_N <- p1_YOY %>% 
+p1_YOY_CE_N <- p1_YOY_CE %>% 
   filter(COMID %in% N_Sites$COMID)
-p2_YOY_N <- p2_YOY %>% 
+p2_YOY_CE_N <- p2_YOY_CE %>% 
   filter(COMID %in% N_Sites$COMID)
-p3_YOY_N <- p3_YOY %>% 
-  filter(COMID %in% N_Sites$COMID)
-
-p1_adult_N <- p1_adult %>% 
-  filter(COMID %in% N_Sites$COMID)
-p2_adult_N <- p2_adult %>% 
-  filter(COMID %in% N_Sites$COMID)
-p3_adult_N <- p3_adult %>% 
+p3_YOY_CE_N <- p3_YOY_CE %>% 
   filter(COMID %in% N_Sites$COMID)
 
-p1_YOY_S <- p1_YOY %>% 
-  filter(COMID %in% S_Sites$COMID)
-p2_YOY_S <- p2_YOY %>% 
-  filter(COMID %in% S_Sites$COMID)
-p3_YOY_S <- p3_YOY %>% 
-  filter(COMID %in% S_Sites$COMID)
-
-p1_adult_S <- p1_adult %>% 
-  filter(COMID %in% S_Sites$COMID)
-p2_adult_S <- p2_adult %>% 
-  filter(COMID %in% S_Sites$COMID)
-p3_adult_S <- p3_adult %>% 
-  filter(COMID %in% S_Sites$COMID)
-
-sample_areas_wide_N <- sample_areas_wide %>% 
+p1_YOY_RE_N <- p1_YOY_RE %>% 
   filter(COMID %in% N_Sites$COMID)
-sample_areas_wide_S <- sample_areas_wide %>% 
+p2_YOY_RE_N <- p2_YOY_RE %>% 
+  filter(COMID %in% N_Sites$COMID)
+p3_YOY_RE_N <- p3_YOY_RE %>% 
+  filter(COMID %in% N_Sites$COMID)
+
+p1_adult_CE_N <- p1_adult_CE %>% 
+  filter(COMID %in% N_Sites$COMID)
+p2_adult_CE_N <- p2_adult_CE %>% 
+  filter(COMID %in% N_Sites$COMID)
+p3_adult_CE_N <- p3_adult_CE %>% 
+  filter(COMID %in% N_Sites$COMID)
+
+p1_adult_RE_N <- p1_adult_RE %>% 
+  filter(COMID %in% N_Sites$COMID)
+p2_adult_RE_N <- p2_adult_RE %>% 
+  filter(COMID %in% N_Sites$COMID)
+p3_adult_RE_N <- p3_adult_RE %>% 
+  filter(COMID %in% N_Sites$COMID)
+
+p1_YOY_CE_S <- p1_YOY_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p2_YOY_CE_S <- p2_YOY_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p3_YOY_CE_S <- p3_YOY_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+
+p1_YOY_RE_S <- p1_YOY_RE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p2_YOY_RE_S <- p2_YOY_RE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p3_YOY_RE_S <- p3_YOY_RE %>% 
+  filter(COMID %in% S_Sites$COMID)
+
+p1_adult_CE_S <- p1_adult_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p2_adult_CE_S <- p2_adult_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p3_adult_CE_S <- p3_adult_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+
+p1_adult_RE_S <- p1_adult_RE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p2_adult_RE_S <- p2_adult_RE %>% 
+  filter(COMID %in% S_Sites$COMID)
+p3_adult_RE_S <- p3_adult_RE %>% 
+  filter(COMID %in% S_Sites$COMID)
+
+sample_areas_wide_CE_N <- sample_areas_wide_CE %>% 
+  filter(COMID %in% N_Sites$COMID)
+sample_areas_wide_RE_N <- sample_areas_wide_RE %>% 
+  filter(COMID %in% N_Sites$COMID)
+sample_areas_wide_CE_S <- sample_areas_wide_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+sample_areas_wide_RE_S <- sample_areas_wide_RE %>% 
   filter(COMID %in% S_Sites$COMID)
 
 Mean_Max_Summer_Temp_Scaled_N <- Mean_Max_Summer_Temp_Scaled %>% 
@@ -1084,47 +1214,51 @@ Max_0.9Q_SpringFlow_Scaled_S <- Max_0.9Q_SpringFlow_Scaled %>%
   filter(COMID %in% S_Sites$COMID)
 
 # Set sample sizes
-nReps_N <- nrow(p1_YOY_N)
-nReps_S <- nrow(p1_YOY_S)
-nSources_N <- length(unique(p1_YOY_N$Source))
-nSources_S <- length(unique(p1_YOY_S$Source))
+nReps_CE_N <- nrow(p1_YOY_CE_N)
+nReps_RE_N <- nrow(p1_YOY_RE_N)
+nReps_CE_S <- nrow(p1_YOY_CE_S)
+nReps_RE_S <- nrow(p1_YOY_RE_S)
+nAgencies_CE_N <- length(unique(p1_YOY_CE_N$Agency))
+nAgencies_RE_N <- length(unique(p1_YOY_RE_N$Agency))
+nAgencies_CE_S <- length(unique(p1_YOY_CE_S$Agency))
+nAgencies_RE_S <- length(unique(p1_YOY_RE_S$Agency))
 
 ## YOY analysis
 # Models can stay the same, we just subset the data
 
 # NORTH - climate model
 # Bundle data
-jags_data <- list(nReps = nReps_N, 
-                  nYears = nYears,
-                  nSources = nSources_N,
-                  Area = sample_areas_wide_N,
+jags_data <- list(nReps = nReps_CE_N, 
+                  nYears = nYears_CE,
+                  nAgencies = nAgencies_CE_N,
+                  Area = sample_areas_wide_CE_N,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_N,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_N,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_N,
-                  p1_YOY = p1_YOY_N,
-                  p2_YOY = p2_YOY_N, 
-                  p3_YOY = p3_YOY_N,
-                  Sources = as.numeric(as.factor(p1_YOY_N$Source)))
+                  p1_YOY = p1_YOY_CE_N,
+                  p2_YOY = p2_YOY_CE_N, 
+                  p3_YOY = p3_YOY_CE_N,
+                  Agencies = as.numeric(as.factor(p1_YOY_CE_N$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
-for (i in 1:nReps_N) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY_N[i,t] + p2_YOY_N[i,t] + p3_YOY_N[i,t])),
+N.YOY.inits <- array(numeric(), dim = c(nReps_CE_N, nYears_CE))
+for (i in 1:nReps_CE_N) {
+  for (t in 1:nYears_CE) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_YOY_CE_N[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_YOY_N[i,t] + p2_YOY_N[i,t] + p3_YOY_N[i,t] + 1) * 2)))
+                                                sum(p1_YOY_CE_N[i,t], p2_YOY_CE_N[i,t], p3_YOY_CE_N[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_CE_N, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources_N),
+                             p = rep(0.5, times = nAgencies_CE_N),
                              N.YOY = N.YOY.inits)
 
 # MCMC settings
@@ -1148,36 +1282,36 @@ YOY_climateEffects_N_params <- MCMCsummary(YOY_climateEffects_N, HPD = T)
 
 # NORTH - random effects model
 # Bundle data
-jags_data <- list(nReps = nReps_N, 
-                  nYears = nYears,
-                  nSources = nSources_N,
-                  Area = sample_areas_wide_N,
-                  p1_YOY = p1_YOY_N,
-                  p2_YOY = p2_YOY_N, 
-                  p3_YOY = p3_YOY_N,
-                  Sources = as.numeric(as.factor(p1_YOY_N$Source)))
+jags_data <- list(nReps = nReps_RE_N, 
+                  nYears = nYears_RE,
+                  nAgencies = nAgencies_RE_N,
+                  Area = sample_areas_wide_RE_N,
+                  p1_YOY = p1_YOY_RE_N,
+                  p2_YOY = p2_YOY_RE_N, 
+                  p3_YOY = p3_YOY_RE_N,
+                  Agencies = as.numeric(as.factor(p1_YOY_RE_N$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps_N, nYears))
-for (i in 1:nReps_N) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY_N[i,t] + p2_YOY_N[i,t] + p3_YOY_N[i,t])),
+N.YOY.inits <- array(numeric(), dim = c(nReps_RE_N, nYears_RE))
+for (i in 1:nReps_RE_N) {
+  for (t in 1:nYears_RE) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_YOY_RE_N[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_YOY_N[i,t] + p2_YOY_N[i,t] + p3_YOY_N[i,t] + 1) * 2)))
+                                                sum(p1_YOY_RE_N[i,t], p2_YOY_RE_N[i,t], p3_YOY_RE_N[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_RE_N, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_N, 0, 10),
-                             gam = array(rnorm(nReps_N * nYears, 0, 10), dim = c(nReps_N, nYears)),
-                             p = rep(0.5, times = nSources_N),
+                             eps = rnorm(nYears_RE, 0, 10),
+                             sd.gam = runif(nReps_RE_N, 0, 10),
+                             gam = array(rnorm(nReps_RE_N * nYears_RE, 0, 10), dim = c(nReps_RE_N, nYears_RE)),
+                             p = rep(0.5, times = nAgencies_RE_N),
                              N.YOY = N.YOY.inits)
 
 # MCMC settings
@@ -1201,37 +1335,37 @@ YOY_randomEffects_N_params <- MCMCsummary(YOY_randomEffects_N, HPD = T)
 
 # SOUTH - climate model
 # Bundle data
-jags_data <- list(nReps = nReps_S, 
-                  nYears = nYears,
-                  nSources = nSources_S,
-                  Area = sample_areas_wide_S,
+jags_data <- list(nReps = nReps_CE_S, 
+                  nYears = nYears_CE,
+                  nAgencies = nAgencies_CE_S,
+                  Area = sample_areas_wide_CE_S,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_S,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_S,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_S,
-                  p1_YOY = p1_YOY_S,
-                  p2_YOY = p2_YOY_S, 
-                  p3_YOY = p3_YOY_S,
-                  Sources = as.numeric(as.factor(p1_YOY_S$Source)))
+                  p1_YOY = p1_YOY_CE_S,
+                  p2_YOY = p2_YOY_CE_S, 
+                  p3_YOY = p3_YOY_CE_S,
+                  Agencies = as.numeric(as.factor(p1_YOY_CE_S$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
-for (i in 1:nReps_S) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY_S[i,t] + p2_YOY_S[i,t] + p3_YOY_S[i,t])),
+N.YOY.inits <- array(numeric(), dim = c(nReps_CE_S, nYears_CE))
+for (i in 1:nReps_CE_S) {
+  for (t in 1:nYears_CE) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_YOY_CE_S[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_YOY_S[i,t] + p2_YOY_S[i,t] + p3_YOY_S[i,t] + 1) * 2)))
+                                                sum(p1_YOY_CE_S[i,t], p2_YOY_CE_S[i,t], p3_YOY_CE_S[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_CE_S, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources_S),
+                             p = rep(0.5, times = nAgencies_CE_S),
                              N.YOY = N.YOY.inits)
 
 # MCMC settings
@@ -1255,36 +1389,36 @@ YOY_climateEffects_S_params <- MCMCsummary(YOY_climateEffects_S, HPD = T)
 
 # SOUTH - random effects model
 # Bundle data
-jags_data <- list(nReps = nReps_S, 
-                  nYears = nYears,
-                  nSources = nSources_S,
-                  Area = sample_areas_wide_S,
-                  p1_YOY = p1_YOY_S,
-                  p2_YOY = p2_YOY_S, 
-                  p3_YOY = p3_YOY_S,
-                  Sources = as.numeric(as.factor(p1_YOY_S$Source)))
+jags_data <- list(nReps = nReps_RE_S, 
+                  nYears = nYears_RE,
+                  nAgencies = nAgencies_RE_S,
+                  Area = sample_areas_wide_RE_S,
+                  p1_YOY = p1_YOY_RE_S,
+                  p2_YOY = p2_YOY_RE_S, 
+                  p3_YOY = p3_YOY_RE_S,
+                  Agencies = as.numeric(as.factor(p1_YOY_RE_S$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.YOY", "mean_ICC.YOY", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.YOY. Initial values must all be great than or equal to the sum of observed counts
-N.YOY.inits <- array(numeric(), dim = c(nReps_S, nYears))
-for (i in 1:nReps_S) {
-  for (t in 1:nYears) {
-    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_YOY_S[i,t] + p2_YOY_S[i,t] + p3_YOY_S[i,t])),
+N.YOY.inits <- array(numeric(), dim = c(nReps_RE_S, nYears_RE))
+for (i in 1:nReps_RE_S) {
+  for (t in 1:nYears_RE) {
+    N.YOY.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_YOY_RE_S[i,t]),
                                                 rpois(1, lambda = 200),
-                                                (p1_YOY_S[i,t] + p2_YOY_S[i,t] + p3_YOY_S[i,t] + 1) * 2)))
+                                                sum(p1_YOY_RE_S[i,t], p2_YOY_RE_S[i,t], p3_YOY_RE_S[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_RE_S, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_S, 0, 10),
-                             gam = array(rnorm(nReps_S * nYears, 0, 10), dim = c(nReps_S, nYears)),
-                             p = rep(0.5, times = nSources_S),
+                             eps = rnorm(nYears_RE, 0, 10),
+                             sd.gam = runif(nReps_RE_S, 0, 10),
+                             gam = array(rnorm(nReps_RE_S * nYears_RE, 0, 10), dim = c(nReps_RE_S, nYears_RE)),
+                             p = rep(0.5, times = nAgencies_RE_S),
                              N.YOY = N.YOY.inits)
 
 # MCMC settings
@@ -1311,37 +1445,38 @@ YOY_randomEffects_S_params <- MCMCsummary(YOY_randomEffects_S, HPD = T)
 
 # NORTH - climate model
 # Bundle data
-jags_data <- list(nReps = nReps_N, 
-                  nYears = nYears,
-                  nSources = nSources_N,
-                  Area = sample_areas_wide_N,
+jags_data <- list(nReps = nReps_CE_N, 
+                  nYears = nYears_CE,
+                  nAgencies = nAgencies_CE_N,
+                  Area = sample_areas_wide_CE_N,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_N,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_N,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_N,
-                  p1_adult = p1_adult_N,
-                  p2_adult = p2_adult_N, 
-                  p3_adult = p3_adult_N,
-                  Sources = as.numeric(as.factor(p1_adult_N$Source)))
+                  p1_adult = p1_adult_CE_N,
+                  p2_adult = p2_adult_CE_N, 
+                  p3_adult = p3_adult_CE_N,
+                  Agencies = as.numeric(as.factor(p1_adult_CE_N$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
-for (i in 1:nReps_N) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult_N[i,t] + p2_adult_N[i,t] + p3_adult_N[i,t])),
-                                                rpois(1, lambda = 200),
-                                                (p1_adult_N[i,t] + p2_adult_N[i,t] + p3_adult_N[i,t] + 1) * 2)))
+N.adult.inits <- array(numeric(), dim = c(nReps_CE_N, nYears_CE))
+for (i in 1:nReps_CE_N) {
+  for (t in 1:nYears_CE) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_adult_CE_N[i,t]),
+                                                  rpois(1, lambda = 200),
+                                                  sum(p1_adult_CE_N[i,t], p2_adult_CE_N[i,t], p3_adult_CE_N[i,t], 1, na.rm = T) * 2)))
   }
 }
 
+
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_CE_N, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources_N),
+                             p = rep(0.5, times = nAgencies_CE_N),
                              N.adult = N.adult.inits)
 
 # MCMC settings
@@ -1365,36 +1500,36 @@ Adult_climateEffects_N_params <- MCMCsummary(Adult_climateEffects_N,  HPD = T)
 
 # NORTH - random effects model
 # Bundle data
-jags_data <- list(nReps = nReps_N, 
-                  nYears = nYears,
-                  nSources = nSources_N,
-                  Area = sample_areas_wide_N,
-                  p1_adult = p1_adult_N,
-                  p2_adult = p2_adult_N, 
-                  p3_adult = p3_adult_N,
-                  Sources = as.numeric(as.factor(p1_adult_N$Source)))
+jags_data <- list(nReps = nReps_RE_N, 
+                  nYears = nYears_RE,
+                  nAgencies = nAgencies_RE_N,
+                  Area = sample_areas_wide_RE_N,
+                  p1_adult = p1_adult_RE_N,
+                  p2_adult = p2_adult_RE_N, 
+                  p3_adult = p3_adult_RE_N,
+                  Agencies = as.numeric(as.factor(p1_adult_RE_N$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps_N, nYears))
-for (i in 1:nReps_N) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult_N[i,t] + p2_adult_N[i,t] + p3_adult_N[i,t])),
-                                                rpois(1, lambda = 200),
-                                                (p1_adult_N[i,t] + p2_adult_N[i,t] + p3_adult_N[i,t] + 1) * 2)))
+N.adult.inits <- array(numeric(), dim = c(nReps_RE_N, nYears_RE))
+for (i in 1:nReps_RE_N) {
+  for (t in 1:nYears_RE) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_adult_RE_N[i,t]),
+                                                  rpois(1, lambda = 200),
+                                                  sum(p1_adult_RE_N[i,t], p2_adult_RE_N[i,t], p3_adult_RE_N[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_N, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_RE_N, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_N, 0, 10),
-                             gam = array(rnorm(nReps_N * nYears, 0, 10), dim = c(nReps_N, nYears)),
-                             p = rep(0.5, times = nSources_N),
+                             eps = rnorm(nYears_RE, 0, 10),
+                             sd.gam = runif(nReps_RE_N, 0, 10),
+                             gam = array(rnorm(nReps_RE_N * nYears_RE, 0, 10), dim = c(nReps_RE_N, nYears_RE)),
+                             p = rep(0.5, times = nAgencies_RE_N),
                              N.adult = N.adult.inits)
 
 # MCMC settings
@@ -1418,37 +1553,37 @@ Adult_randomEffects_N_params <- MCMCsummary(Adult_randomEffects_N, HPD = T)
 
 # SOUTH - climate model
 # Bundle data
-jags_data <- list(nReps = nReps_S, 
-                  nYears = nYears,
-                  nSources = nSources_S,
-                  Area = sample_areas_wide_S,
+jags_data <- list(nReps = nReps_CE_S, 
+                  nYears = nYears_CE,
+                  nAgencies = nAgencies_CE_S,
+                  Area = sample_areas_wide_CE_S,
                   Mean_Max_Summer_Temp_Scaled = Mean_Max_Summer_Temp_Scaled_S,
                   Max_0.9Q_WinterFlow_Scaled = Max_0.9Q_WinterFlow_Scaled_S,
                   Max_0.9Q_SpringFlow_Scaled = Max_0.9Q_SpringFlow_Scaled_S,
-                  p1_adult = p1_adult_S,
-                  p2_adult = p2_adult_S, 
-                  p3_adult = p3_adult_S,
-                  Sources = as.numeric(as.factor(p1_adult_S$Source)))
+                  p1_adult = p1_adult_CE_S,
+                  p2_adult = p2_adult_CE_S, 
+                  p3_adult = p3_adult_CE_S,
+                  Agencies = as.numeric(as.factor(p1_adult_CE_S$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "beta", "mu.beta", "s2.beta", "p", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
-for (i in 1:nReps_S) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult_S[i,t] + p2_adult_S[i,t] + p3_adult_S[i,t])),
-                                                rpois(1, lambda = 200),
-                                                (p1_adult_S[i,t] + p2_adult_S[i,t] + p3_adult_S[i,t] + 1) * 2)))
+N.adult.inits <- array(numeric(), dim = c(nReps_CE_S, nYears_CE))
+for (i in 1:nReps_CE_S) {
+  for (t in 1:nYears_CE) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_adult_CE_S[i,t]),
+                                                  rpois(1, lambda = 200),
+                                                  sum(p1_adult_CE_S[i,t], p2_adult_CE_S[i,t], p3_adult_CE_S[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_CE_S, 0, 0.001),
                              sd.beta = runif(3, 0, 10),
                              mu.beta = rnorm(3, -0.5, 0.01),
-                             p = rep(0.5, times = nSources_S),
+                             p = rep(0.5, times = nAgencies_CE_S),
                              N.adult = N.adult.inits)
 # MCMC settings
 ni <- 25000
@@ -1469,38 +1604,38 @@ Adult_climateEffects_S <- jagsUI::jags(data = jags_data,
 
 Adult_climateEffects_S_params <- MCMCsummary(Adult_climateEffects_S,  HPD = T)
 
-# NORTH - random effects model
+# SOUTH - random effects model
 # Bundle data
-jags_data <- list(nReps = nReps_S, 
-                  nYears = nYears,
-                  nSources = nSources_S,
-                  Area = sample_areas_wide_S,
-                  p1_adult = p1_adult_S,
-                  p2_adult = p2_adult_S, 
-                  p3_adult = p3_adult_S,
-                  Sources = as.numeric(as.factor(p1_adult_S$Source)))
+jags_data <- list(nReps = nReps_RE_S, 
+                  nYears = nYears_RE,
+                  nAgencies = nAgencies_RE_S,
+                  Area = sample_areas_wide_RE_S,
+                  p1_adult = p1_adult_RE_S,
+                  p2_adult = p2_adult_RE_S, 
+                  p3_adult = p3_adult_RE_S,
+                  Agencies = as.numeric(as.factor(p1_adult_RE_S$Agency)))
 
 
 # Parameters to save
 jags_params <- c("omega", "p", "s2.eps",  "s2.gam",  "ICC.adult", "mean_ICC.adult", "pval.mean_p1", "pval.CV_p1")
 
 # create and populate an array of initial values for N.adult. Initial values must all be great than or equal to the sum of observed counts
-N.adult.inits <- array(numeric(), dim = c(nReps_S, nYears))
-for (i in 1:nReps_S) {
-  for (t in 1:nYears) {
-    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na((p1_adult_S[i,t] + p2_adult_S[i,t] + p3_adult_S[i,t])),
+N.adult.inits <- array(numeric(), dim = c(nReps_RE_S, nYears_RE))
+for (i in 1:nReps_RE_S) {
+  for (t in 1:nYears_RE) {
+    N.adult.inits[i,t] <- round(as.numeric(ifelse(is.na(p1_adult_RE_S[i,t]),
                                                   rpois(1, lambda = 200),
-                                                  (p1_adult_S[i,t] + p2_adult_S[i,t] + p3_adult_S[i,t] + 1) * 2)))
+                                                  sum(p1_adult_RE_S[i,t], p2_adult_RE_S[i,t], p3_adult_RE_S[i,t], 1, na.rm = T) * 2)))
   }
 }
 
 # Set initial values
-init_vals <- function() list(omega = rnorm(nReps_S, 0, 0.001),
+init_vals <- function() list(omega = rnorm(nReps_RE_S, 0, 0.001),
                              sd.eps = runif(1, 0, 10),
-                             eps = rnorm(nYears, 0, 10),
-                             sd.gam = runif(nReps_S, 0, 10),
-                             gam = array(rnorm(nReps_S * nYears, 0, 10), dim = c(nReps_S, nYears)),
-                             p = rep(0.5, times = nSources_S),
+                             eps = rnorm(nYears_RE, 0, 10),
+                             sd.gam = runif(nReps_RE_S, 0, 10),
+                             gam = array(rnorm(nReps_RE_S * nYears_RE, 0, 10), dim = c(nReps_RE_S, nYears_RE)),
+                             p = rep(0.5, times = nAgencies_RE_S),
                              N.adult = N.adult.inits)
 
 # MCMC settings
@@ -1522,32 +1657,41 @@ Adult_randomEffects_S <- jagsUI::jags(data = jags_data,
 
 Adult_randomEffects_S_params <- MCMCsummary(Adult_randomEffects_S, HPD = T)
 
-MCMCtrace(Adult_randomEffects_S, params = "omega", pdf = F)
+#MCMCtrace(Adult_randomEffects_S, params = "omega", pdf = F)
 
-
+save.image()
 ######################################
 ### Post-Hoc
 ######################################
 
 # make a dataframe of segments with coordinates for mapping
-COMIDs_source <- SE_Site_Final %>% 
-  filter(COMID %in% p1_YOY$COMID) %>% 
+COMIDs_agency <- SE_Site_Final %>% 
+  filter(COMID %in% p1_YOY_CE$COMID) %>% 
   group_by(COMID,
-           Source) %>% 
+           Agency) %>% 
   summarize(State = first(State),
             Lat = first(Lat),
             Long = first(Long),
             Elev_m = first(Elev_m))
 
-segment_data <- data.frame(Source = sources) %>% 
-  mutate(sourceNum = row_number()) %>% 
-  right_join(p1_YOY[,c("COMID", "Source")], by = c("sourceNum" = "Source")) %>% 
+segment_data_CE <- data.frame(Agency = agencies) %>% 
+  mutate(agencyNum = row_number()) %>% 
+  right_join(p1_YOY_CE[,c("COMID", "Agency")], by = c("agencyNum" = "Agency")) %>% 
   left_join(source_agency_crosswalk) %>% 
-  left_join(COMIDs_source, by = c("COMID", "Source")) %>% 
-  dplyr::select(-sourceNum)
+  left_join(COMIDs_agency, by = c("COMID", "Agency")) %>% 
+  dplyr::select(-agencyNum) %>% 
+  arrange(COMID)
+
+segment_data_RE <- data.frame(Agency = agencies_RE) %>% 
+  mutate(agencyNum = row_number()) %>% 
+  right_join(p1_YOY_RE[,c("COMID", "Agency")], by = c("agencyNum" = "Agency")) %>% 
+  left_join(source_agency_crosswalk) %>% 
+  left_join(COMIDs_agency, by = c("COMID", "Agency")) %>% 
+  dplyr::select(-agencyNum) %>% 
+  arrange(COMID)
 
 # Export to make the map in QGIS
-#fwrite(segment_data, here("Data", "SE_Trout_Segments_filtered.csv"))
+fwrite(segment_data_CE, here("Data", "SE_Trout_Segments_filtered.csv"))
 
 # Create a map of segments
 US_states <- map_data("state")
@@ -1556,7 +1700,7 @@ segments_map.plot <- ggplot() +
   geom_polygon(data = US_states, 
                aes(x = long, y = lat, group = group),
                color = "black", fill = NA) +
-  geom_point(data = segment_data, 
+  geom_point(data = segment_data_CE, 
              aes(x = Long, y = Lat, color = Agency), alpha = 0.5) +
   coord_map("albers",
             parameters = c(29.5, 45.5),
@@ -1564,7 +1708,7 @@ segments_map.plot <- ggplot() +
             ylim = c(34.5, 40)) +
   labs(x = "Long",
        y = "Lat",
-       color = "Source") +
+       color = "Agency") +
   scale_color_brewer(palette = "Set1") +
   theme_classic() + 
   theme(text = element_text(family =  "serif"))
@@ -1588,32 +1732,36 @@ segments_map.plot <- ggplot() +
 #   theme(legend.position = "none")
 
 # make north and south versions too
-segment_data_N <- segment_data %>% 
+segment_data_CE_N <- segment_data_CE %>% 
+  filter(COMID %in% N_Sites$COMID)
+segment_data_RE_N <- segment_data_RE %>% 
   filter(COMID %in% N_Sites$COMID)
 
-segment_data_S <- segment_data %>% 
+segment_data_CE_S <- segment_data_CE %>% 
+  filter(COMID %in% S_Sites$COMID)
+segment_data_RE_S <- segment_data_RE %>% 
   filter(COMID %in% S_Sites$COMID)
 
 ######################################
-# Create a table of source data
+# Create a table of agency data
 
-# Get string of sources and their locations
-sources2 <- data.frame(Source = sources) %>% 
+# Get string of agencies and their locations
+agencies2 <- data.frame(Agency = agencies) %>% 
   left_join(source_agency_crosswalk)
 
-sources.table <- p1_YOY %>% 
+agencies.table <- p1_YOY_CE %>% 
   .[,c(1:34, 37)] %>% 
   pivot_longer(cols = 1:34,
                names_to = "Year",
                values_to = "Count") %>% 
-  group_by(Source, Year) %>% 
+  group_by(Agency, Year) %>% 
   dplyr::summarise(Count = sum(Count, na.rm = T)) %>% 
   ungroup(Year) %>% 
   filter(Count > 0) %>% 
   dplyr::summarise(Data_Range = paste(min(Year), "-", max(Year)),
                    NYears_Data = n()) %>% 
-  cbind(Agency = sources2$Agency) %>% 
-  dplyr::select(-Source) %>% 
+  cbind(Agency = agencies2$Agency) %>% 
+  dplyr::select(-Agency) %>% 
   .[,c("Agency", "Data_Range", "NYears_Data")]
 
 #####################################
@@ -1656,17 +1804,17 @@ SE_segments_S <- SE_segments %>%
 # Climate covariates
 summTemp_N <- SE_COMID_temp_covars %>% 
   filter(COMID %in% N_Sites$COMID, # Filter to just data for which we have samples
-         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+         Year %in% YOY_BKT_passCounts_CE$Year) # filter for years which we have trout data
 summTemp_S <- SE_COMID_temp_covars %>% 
   filter(COMID %in% S_Sites$COMID, # Filter to just data for which we have samples
-         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+         Year %in% YOY_BKT_passCounts_CE$Year) # filter for years which we have trout data
 
 streamFlow_N <- SE_COMID_flow_covars %>% 
   filter(COMID %in% N_Sites$COMID, # Filter to just data for which we have samples
-         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+         Year %in% YOY_BKT_passCounts_CE$Year) # filter for years which we have trout data
 streamFlow_S <- SE_COMID_flow_covars %>% 
   filter(COMID %in% S_Sites$COMID, # Filter to just data for which we have samples
-         Year %in% YOY_BKT_passCounts$Year) # filter for years which we have trout data
+         Year %in% YOY_BKT_passCounts_CE$Year) # filter for years which we have trout data
 
 Segment_Summary.table <- data.frame(Variable = c("Channel Slope (%)",
                                                  "Length (km)",
@@ -1724,11 +1872,11 @@ SE_Site_Final %>%
 
 # Filter for temp data at sites and years where we have trout data
 temp_summary_data <- SE_COMID_temp_covars %>% 
-  filter(COMID %in% p1_YOY$COMID,
+  filter(COMID %in% p1_YOY_CE$COMID,
          Year %in% 1981:2015)
 
 flow_summary_data <- SE_COMID_flow_covars %>% 
-  filter(COMID %in% p1_YOY$COMID,
+  filter(COMID %in% p1_YOY_CE$COMID,
          Year %in% 1982:2015)
 
 nMix_Covar_Summary.table <- data.frame(Covar = c("Mean 90th percentile summer temperature (C)",
@@ -1752,7 +1900,7 @@ stock_recruit_data <- SE_Ind_Final %>%
   ungroup() %>% 
   left_join(SE_Site_Final[,c("SiteID", "COMID")]) %>%
   filter(!is.na(COMID),
-         COMID %in% p1_YOY$COMID) %>% 
+         COMID %in% p1_YOY_CE$COMID) %>% 
   group_by(COMID,
           Year) %>% 
   summarise(log_YOY_t = log(mean(n_YOY)+1),
@@ -1800,22 +1948,22 @@ SSR_2.plot <- stock_recruit_data %>%
 YOY_climateEffects_PPCs <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(2,4,5)
+  dplyr::select(2)
 
 YOY_randomEffects_PPCs <- YOY_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(2,4,5)
+  dplyr::select(2)
 
 Adult_climateEffects_PPCs <- Adult_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(2,4,5)
+  dplyr::select(2)
 
 Adult_randomEffects_PPCs <- Adult_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(param %in% c("pval.mean_p1", "pval.CV_p1")) %>% 
-  dplyr::select(2,4,5)
+  dplyr::select(2)
 
 PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 4),
                                              rep("Adult", 4)),
@@ -1832,32 +1980,32 @@ PPC_pvals.table <- data.frame(Life_Stage = c(rep("YOY", 4),
 YOY_ICCs.table <- YOY_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.YOY\\[")) %>% 
-  cbind(segment_data)
+  cbind(segment_data_RE)
 
 Adult_ICCs.table <- Adult_randomEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.adult\\[")) %>% 
-  cbind(segment_data)
+  cbind(segment_data_RE)
 
 YOY_ICCs_N.table <- YOY_randomEffects_N_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.YOY\\[")) %>% 
-  cbind(segment_data_N)
+  cbind(segment_data_RE_N)
 
 YOY_ICCs_S.table <- YOY_randomEffects_S_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.YOY\\[")) %>% 
-  cbind(segment_data_S)
+  cbind(segment_data_RE_S)
 
 Adult_ICCs_N.table <- Adult_randomEffects_N_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.adult\\[")) %>% 
-  cbind(segment_data_N)
+  cbind(segment_data_RE_N)
 
 Adult_ICCs_S.table <- Adult_randomEffects_S_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "ICC.adult\\[")) %>% 
-  cbind(segment_data_S)
+  cbind(segment_data_RE_S)
 
 # Do the most synchronous/asynchronous sites from the N/S show up in the the overall ICCs?
 YOY_highestICCs_map.plot <- ggplot() +
@@ -2015,22 +2163,19 @@ library(corrplot)
 NHDplus_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/GIS Data/NHDplus/NHDPlusV21_NationalData_Seamless_Geodatabase_Lower48_07/NHDPlusv2.1_National_FlowlineData.csv")
 # and filter to our sites
 NHDplus_data <- NHDplus_data %>% 
-  filter(COMID %in% segment_data$COMID)
+  filter(COMID %in% segment_data_RE$COMID)
 
 # load streamcat data
 StreamCat_Data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/StreamCat Data/StreamCat_Covars_Combined.csv")
 # and filter to our sites
 StreamCat_Data <- StreamCat_Data %>% 
-  filter(COMID %in% segment_data$COMID)
+  filter(COMID %in% segment_data_RE$COMID)
 
-ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>% 
-  left_join(SE_Site_Final, by = "COMID") %>% 
+ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>%
   left_join(NHDplus_data) %>% 
   left_join(StreamCat_Data) %>% 
   select(where(is.numeric),
-         -SiteID,
          -COMID,
-         -LongTerm,
          -fid,
          -OBJECTID,
          -GNIS_ID,
@@ -2061,13 +2206,14 @@ ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>%
          -LevelPathI,
          -DnLevelPat,
          -TerminalPa,
-         -Lat.y)
+         -FromMeas,
+         -ToMeas)
 
 YOY_ICC_corrPlot <- corrplot(cor(ICC_corr_data , method="spearman", use="pairwise.complete.obs"))
 # get values
 YOY_ICC_corrs.table <- as.data.frame(YOY_ICC_corrPlot$corrPos) %>% 
   filter(xName == "mean")
-# mean ICC is not really correlated with any of these site-level covars
+  # mean ICC is not really correlated with any of these site-level covars
 YOY_ICC_corrs.table <- YOY_ICC_corrs.table %>% 
   arrange(-abs(corr)) %>% 
   .[2:11,c(2,5)]
@@ -2205,7 +2351,7 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
               alpha = 0.75,
               color = NA) +
   facet_grid(life_stage ~ .) +
-  geom_vline(xintercept = 0, linetype = "dashed", size = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.5) +
   theme_classic() +
   #theme(panel.grid.major.y = element_line(colour = "grey80")) +
   geom_hline(yintercept=seq(0,length(mu.beta_samples.table[,1]),1)+.5,color="grey80") +
@@ -2229,10 +2375,11 @@ YOY_climate_effects.table <- rbind(YOY_climateEffects_params %>%
                                      rownames_to_column(., "param") %>% 
                                      filter(str_detect(param, "beta\\[3,")) %>% 
                                      select(mean)) %>% 
-  cbind(segment_data,
-        rbind(data.frame(covar = rep("Summer Temperature", 170)),
-              data.frame(covar = rep("Winter Flow", 170)),
-              data.frame(covar = rep("Spring Flow", 170))))
+  cbind(segment_data_CE,
+        rbind(data.frame(covar = rep("Summer Temperature", 164)),
+              data.frame(covar = rep("Winter Flow", 164)),
+              data.frame(covar = rep("Spring Flow", 164)))) %>% 
+  mutate(bin = cut(mean, breaks = c(Inf, 2, 1, -1, -2, -Inf)))
 
 # reorder the covariates so that summer temperature plots first
 YOY_climate_effects.table$covar <- factor(YOY_climate_effects.table$covar, c("Summer Temperature", "Winter Flow", "Spring Flow"))
@@ -2245,7 +2392,7 @@ YOY_SummTemp_betas.plot <- ggplot() +
                color = "black", fill = NA) +
   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
              aes(x = Long, y = Lat, color = mean),
-             alpha = 0.5) +
+             alpha = 0.75) +
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -76),
@@ -2256,24 +2403,24 @@ YOY_SummTemp_betas.plot <- ggplot() +
   scale_color_viridis(option = "H") +
   theme_classic() 
 
-# # plot for presentations
-# ggplot() +
-#   geom_polygon(data = US_states,
-#                aes(x = long, y = lat, group = group),
-#                color = "black", fill = NA) +
-#   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
-#              aes(x = Long, y = Lat, color = mean),
-#              alpha = 0.5) +
-#   geom_segment(aes(x = -85, xend = -75,
-#                    y = 37.13, yend = 37.13),
-#              linetype = "dashed") +
-#   coord_map("albers",
-#             parameters = c(29.5, 45.5),
-#             xlim = c(-83.75, -76),
-#             ylim = c(33, 41.7)) +
-#   labs(color = TeX(r'($\beta$ Value)')) +
-#   scale_color_viridis(option = "H") +
-#   theme_void()
+# plot for presentations
+ggplot() +
+  geom_polygon(data = US_states,
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
+             aes(x = Long, y = Lat, color = mean),
+             alpha = 0.5) +
+  geom_segment(aes(x = -85, xend = -75,
+                   y = 37.13, yend = 37.13),
+             linetype = "dashed") +
+  coord_map("albers",
+            parameters = c(29.5, 45.5),
+            xlim = c(-83.75, -76),
+            ylim = c(33, 41.7)) +
+  labs(color = TeX(r'($\beta$ Value)')) +
+  scale_color_viridis(option = "H") +
+  theme_void()
 
 YOY_WintFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2328,7 +2475,7 @@ YOY_SprFlow_betas.plot <- ggplot() +
   scale_color_viridis(option = "H") +
   theme_classic()
 
-# plot for presentations
+# # plot for presentations
 # ggplot() +
 #   geom_polygon(data = US_states,
 #                aes(x = long, y = lat, group = group),
@@ -2352,7 +2499,7 @@ YOY_SprFlow_betas.plot <- ggplot() +
 count_vs_climate_data <- pivot_longer(Mean_Max_Summer_Temp_Scaled, cols = 1:34, names_to = "Year", values_to = "SummTemp") %>% 
   left_join(pivot_longer(Max_0.9Q_WinterFlow_Scaled, cols = 1:34, names_to = "Year", values_to = "WintFlow")) %>%
   left_join(pivot_longer(Max_0.9Q_SpringFlow_Scaled, cols = 1:34, names_to = "Year", values_to = "SprFlow")) %>% 
-  left_join(pivot_longer(p1_YOY, cols = 1:34, names_to = "Year", values_to = "count_YOY"))
+  left_join(pivot_longer(p1_YOY_CE, cols = 1:34, names_to = "Year", values_to = "count_YOY"))
 
 count_vs_SummTemp.plot <- ggplot(count_vs_climate_data) +
   geom_line(aes(x = SummTemp,
@@ -2536,15 +2683,14 @@ cov_effect_variances.table <- data.frame(Life_Stage = c(rep("YOY", 3), rep("Adul
 ################
 # Summarize detection probability in table
 
-Detect_probs.table <- data.frame(
-  Agency = rep(sources2$Agency, times = 2),
-  Life_Stage = c(rep("YOY", times = 9),
-                rep("Adult", times = 9))) %>% 
+Detect_probs <- data.frame(
+  Agency = rep(agencies2$Agency, times = 2),
+  Life_Stage = c(rep("YOY", times = 12),
+                rep("Adult", times = 12))) %>% 
   # add in jagsUI model summary values
   cbind(rbind(YOY_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4],
               Adult_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4]))
 
-# reorder life stage factor
 
 
 # and make a plot to visualize
@@ -2569,23 +2715,27 @@ Detect_probs.plot <- ggplot(data = Detect_probs.table) +
   # theme(text = element_text(family =  "serif"),
   #       axis.text.x = element_text(angle = -45, hjust=0))
 
+# create tables of the two life stages for manuscript
+Detect_probs_YOY.table <- Detect_probs[Detect_probs$Life_Stage == "YOY",]
+Detect_probs_Adult.table <- Detect_probs[Detect_probs$Life_Stage == "Adult",]
+
 ################
 # Portfolio effect analysis
 # How does the range of coefficients of variation (CVs) of observed count among populations compare to the CV of all populations?
 # Evidence of portfolio effect: if the overall CV is lower than that of the individual populations
 
 # Calculate CV for each segment
-CV.p1 <- rep(NA, nrow(p1_YOY))
+CV.p1 <- rep(NA, nrow(p1_YOY_CE))
 
-for (i in 1:nrow(p1_YOY)) {
-  CV.p1[i] <- sd(p1_YOY[i,1:34], na.rm = T)/rowMeans(p1_YOY[i,1:34], na.rm = T)
+for (i in 1:nrow(p1_YOY_CE)) {
+  CV.p1[i] <- sd(p1_YOY_CE[i,1:34], na.rm = T)/rowMeans(p1_YOY_CE[i,1:34], na.rm = T)
 }
 
 p1_colMean <- rep(NA, 34)
 
 # Calculate CV for all segments
 for (t in 1:34) {
-  p1_colMean[t] <- colMeans(p1_YOY[,t], na.rm = T)
+  p1_colMean[t] <- colMeans(p1_YOY_CE[,t], na.rm = T)
 }
 
 CV.p1_all <- sd(p1_colMean, na.rm = T)/mean(p1_colMean, na.rm = T)
