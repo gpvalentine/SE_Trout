@@ -8,8 +8,8 @@ output: bookdown::pdf_document2
 \renewcommand{\thetable}{S\arabic{table}}
 \setcounter{table}{0}
 
-```{r sources-table}
-kbl(sources.table,
+```{r agencies-table}
+kbl(agencies.table,
       col.names = c("Agency", "Date Range", "Years Data"),
       caption = "Data availability by agency. 'Years Data' indicates temporal coverage within the data range.") %>%
   kable_styling(latex_options = "HOLD_position")
@@ -17,7 +17,7 @@ kbl(sources.table,
 
 \newpage
 
-## Simulation for Missing Data in Correlogram Analysis {-}
+## Simulation for Missing Data in Correlogram Analysis
 A simulation study was undertaken to evaluate the feasibility of interpreting correlograms created using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly brook trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
 
 ```{r Corrgram_MissingData_Sim, echo=TRUE, message=FALSE, warning=FALSE}
@@ -86,11 +86,11 @@ SimStudy_compound.plot <- plot_grid(plot0, plot25, plot50, plot75,
 SimStudy_compound.plot
 ```
 
-Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 47% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.  
+Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 44% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.  
 
 \newpage
 
-## Simulation for Combined Model {-}
+## Simulation for Combined Model
 We developed a simulation to evaluate the identifiability of a model with both climate effects and random effects. We simulated 3-pass electrofishing data for 100 stream segments over 20 years, and evaluated with an an N-mixture model using a removal mechanism coupled with a log linear process model. We simulated one spatially heterogeneous climate covariate and both temporal and spatiotemporal random effects. Detection probability was the same for all simulated stream segments.
 
 ```{r CombinedModel_Sim, eval=F, echo=TRUE, message=FALSE, warning=FALSE}
@@ -230,6 +230,12 @@ CombinedModel_Sim.plot
 
 \newpage
 
+## Code {-}
+
+Code can be found online at github.com/gpvalentine/SE_Trout.
+
+\newpage
+
 (ref:temp-sites-map-cap) Locations of 204 paired air and water temperature sensors. Sites were located in randomly selected subwatersheds identified as capable of supporting populations of brook trout [*Salvelinus fontinalis*, @ebtjv2006]. Located at the downstream outlet of the subwatersheds, at each site a logger underwater was paired with a logger affixed to the bank or a tree. Stream and air temperatures were measured every 30 minutes using remote loggers (Onset Computer Corporation, Bourne, MA 02532). Loggers were deployed from 2011 to 2015. Source: USDA Forest Service.
 
 ```{r temp-sites-map, fig.cap="(ref:temp-sites-map-cap)"}
@@ -244,7 +250,7 @@ precip_sites_map.plot
 
 \newpage
 
-(ref:detect-probs-cap) Per-pass electrofishing capture probability by data source. A combination of single- and multi-pass sampling methods (single: `r round(passes_pcts.table[1,3], 1)`%, multi: `r round(passes_pcts.table[2,3], 1)`%) were employed following standardized sampling protocols for the southern US region [@sdafstroutcommittee1992]. In multi-pass sampling, fish were removed from the stream in successive passes in temporarily blocked stream reaches to estimate capture probability and thus population size. Sampling boundaries were defined by block nets or cobble dams which serve as barriers for fish movement. Depending on stream width, one to three backpack electrofishing units were used.
+(ref:detect-probs-cap) Per-pass electrofishing capture probability by agency. A combination of single- and multi-pass sampling methods (single: `r round(passes_pcts.table[1,3], 1)`%, multi: `r round(passes_pcts.table[2,3], 1)`%) were employed following standardized sampling protocols for the southern US region [@sdafstroutcommittee1992]. In multi-pass sampling, fish were removed from the stream in successive passes in temporarily blocked stream reaches to estimate capture probability and thus population size. Sampling boundaries were defined by block nets or cobble dams which serve as barriers for fish movement. Depending on stream width, one to three backpack electrofishing units were used.
 
 ```{r detect-probs, fig.cap = "(ref:detect-probs-cap)"}
 Detect_probs.plot
@@ -260,12 +266,12 @@ Detect_probs.plot
 
 \newpage
 
-(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): VE_09 = Velocity for predicted runoff (September), PctCrop2016Cat = Percent of catchment area classified as crop land use (2016 NLCD class 82), VC_08 = Velocity for predicted runoff (August), VA_10 = Velocity for annual runoff (October),  VA_09 = Velocity for annual runoff (September), VC_10 = Velocity for predicted runoff (October), VC_07 = Velocity for predicted runoff (July), QC_09 = Estimated flow (September), PctHay2016Ws = Percent of watershed classified as hay land use (2016 NLCD class 81), Pathlength = Distance downstream to network end (km).
+(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): QA_08 = Estimated cumulative runoff (August), VC_08 = Velocity for predicted runoff (August), QE_10 = Gauge flow (October), VE_08 = Velocity for predicted runoff (August), VA_07 = Velocity for annual runoff (July), VA_10 = Velocity for annual runoff (October), PctColluvSedWs = Percent of watershed classified as colluvial sediment, QC_08 = Estimated flow (August), QC_09 = Estimated flow (September), Pathlength = Distance downstream to network end (km).
 
 ```{r YOY-betas-corr-table, message=FALSE, warning=FALSE}
 kbl(YOY_beta_corrs.table,
       row.names = F,
-      col.names = c("Climate Covariate (\\beta_i)", "Local Habitat Variable", "Spearman Correlation"),
+      col.names = c("Climate Covariate", "Local Habitat Variable", "Spearman Correlation"),
       caption = "(ref:YOY-betas-corr-table-cap)")
 ```
 
@@ -279,7 +285,7 @@ YOY_climate_effects_semivariogram.plot
 
 \newpage
 
-(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctShrb2016Cat = Percent of catchment classified as shrub/scrub land cover (2016 NLCD class 52), PctShrb2016Ws = Percent of watershed classified as shrub/scrub land cover (2016 NLCD class 52), OmCat = Mean organic matter content (% by weight) of soils (STATSGO) within catchment, OmWs = Mean organic matter content (% by weight) of soils (STATSGO) within watershed, QC_02 = Adjusted predicted runoff (February), PctNonAgIntrodManagVegWs = % Nonagriculture nonnative introduced or managed vegetation landcover type reclassed from LANDFIRE Existing Vegetation Type (EVT), within watershed, VC_01 = Velocity for adjusted predicted runoff (January), VC_02 = Velocity for adjusted predicted runoff (February), BFIWs = % of baseflow (groundwater discharge) to total flow, within watershed, QE_02 = Gauge flow (February).
+(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctShrb2016Ws = Percent of watershed classified as shrub/scrub land cover (2016 NLCD class 52), PermWs = Mean permeability (cm/hour) of soils (STATSGO) within watershed, PctOw2016Cat = Percent of catchment classified as open water land cover (2016 NLCD class 11), VC_11 = Velocity for annual runoff (November), PctNonAgIntrodManagVegWs = Percent nonagricultural nonnative introduced or managed vegetation landcover type reclassed from LANDFIRE Existing Vegetation Type (EVT), within watershed, PctDecid2016Ws = Percent of watershed area classified as deciduous forest land cover (2016 NLCD class 41), MAXELEVRAW = Maximum elevation (unsmoothed) of segment, PermCat = Mean permeability (cm/hour) of soils (STATSGO) within catchment, PctOw2016Ws = Percent of watershed classified as open water land cover (2016 NLCD class 11), StreamLeve = Stream level.
 
 ```{r YOY-ICCs-corr-table}
 kbl(YOY_ICC_corrs.table,
@@ -298,7 +304,7 @@ YOY_ICCs_semivariogram.plot
 
 \newpage
 
-(ref:Adult-ICC-map-cap) Intraclass correlation coefficient (ICC) values for populations of adult brook trout (*Salvelinus fontinalis*) in the southeastern USA. High ICC values indicate synchrony relative to the temporal variation averaged across segments, while low ICC values indicate asynchrony.
+(ref:Adult-ICC-map-cap) Intraclass correlation coefficient (ICC) values for populations of adult brook trout (*Salvelinus fontinalis*) in the southeastern USA. High ICC values indicate synchrony relative to the temporal variation averaged across segments, while low ICC values indicate asynchrony. The five stream segments with lowest ICC (least synchronous) are indicated by "+".
 
 ```{r Adult-ICC-map, fig.cap = "(ref:Adult-ICC-map-cap)"}
 Adult_ICC_map.plot
@@ -309,10 +315,10 @@ Adult_ICC_map.plot
 (ref:stock-recruitment-plot-cap) a) Stock-recruitment and b) recruitment-stock relationships for young-of-the-year (YOY) and adult brook trout (*Salvelinus fontinalis*) in the 170 stream segments considered in the present analysis. Black lines represent stream segment-specific relationships, and blue lines represent averaged relationships.
 
 ```{r stock-recruitment-plot, fig.cap = "(ref:stock-recruitment-plot-cap)", message=FALSE, warning=FALSE}
-plot_grid(SSR_2.plot,
-          SSR_1.plot,
-          labels = c("a)", "b)"),
-          nrow = 1)
+# plot_grid(SSR_2.plot,
+#           SSR_1.plot,
+#           labels = c("a)", "b)"),
+#           nrow = 1)
 ```
 
 \newpage
@@ -322,10 +328,3 @@ plot_grid(SSR_2.plot,
 ```{r CVs-plot, fig.cap="(ref:CVs-plot-cap)"}
 CVs.plot
 ```
-
-\newpage
-
-```{r nMix_code}
-#knitr::read_chunk(here("Analysis", "SE_Trout_nMix.R"))
-```
-
