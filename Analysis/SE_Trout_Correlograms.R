@@ -27,6 +27,12 @@ SE_Ind_Final <- fread("SE_Ind_Final.csv")
 SE_Sample_Final <- fread("SE_Sample_Final.csv")
 SE_Site_Final <- fread("SE_Site_Final.csv")
 
+# R does not have a built-in Mode function, so we write this one:
+getmode <- function(v) {
+  uniqv <- na.omit(unique(v))
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
 #######################################################################################################################
 #######################################################################################################################
 # Visualize the temporal coverage of the different datasets
@@ -101,7 +107,7 @@ BKT_COMID_Dens <- BKT_sample_sums %>%
                    Lat = first(Lat),
                    Long = first(Long),
                    SiteID_Avg_Abund = mean(Abund_Est), # avg abundance at site in year
-                   SiteID_Area = Length_m * Width_m) %>% 
+                   SiteID_Area = getmode(Length_m) * getmode(Width_m)) %>% 
   group_by(COMID, Year) %>% 
   dplyr::summarise(Lat = mean(Lat),
                    Long = mean(Long),
@@ -278,7 +284,7 @@ YOY_BKT_COMID_Dens <- YOY_BKT_sample_sums %>%
                    Lat = first(Lat),
                    Long = first(Long),
                    Avg_Abund = mean(Abund_Est),
-                   Avg_Density = Avg_Abund/((Length_m * Width_m)/1000)) %>%  # avg density/Site
+                   Avg_Density = Avg_Abund/((getmode(Length_m) * getmode(Width_m))/1000)) %>%  # avg density/Site
   group_by(COMID, Year) %>% 
   dplyr::summarise(Lat = mean(Lat),
                    Long = mean(Long),
@@ -445,7 +451,7 @@ Adult_BKT_COMID_Dens <- Adult_BKT_sample_sums %>%
                    Lat = first(Lat),
                    Long = first(Long),
                    Avg_Abund = mean(Abund_Est),
-                   Avg_Density = Avg_Abund/((Length_m * Width_m)/1000)) %>%  # avg density/Site
+                   Avg_Density = Avg_Abund/((getmode(Length_m) * getmode(Width_m))/1000)) %>%  # avg density/Site
   group_by(COMID, Year) %>% 
   dplyr::summarise(Lat = mean(Lat),
                    Long = mean(Long),
@@ -698,8 +704,8 @@ compound_corrgram_BKT.plot <- ggplot(compound_density_corrgram.data) +
   geom_hline(aes(yintercept = Avg_Corr),
              linetype = "dashed") +
   geom_hline(yintercept = 0) +
-  lims(x = c(0, 450),
-       y = c(-0.25, 0.5)) +
+  lims(x = c(0, 250),
+       y = c(-0.25, 0.6)) +
   theme_classic() +
   labs(x = "Distance Class (km)",
        y = "Correlation") +
@@ -748,7 +754,8 @@ plot(corr3)
 
 #######################################################################
 # Is there any synchrony in summer temperatures or winter flows?
-
+BKT_COMID_logDens_wide_unique <- BKT_COMID_logDens_wide %>% 
+  distinct(COMID, .keep_all = T)
 
 ## Max Estimated 0.9Q Flow
 # Load flow estimates from Daren Carlisle at USGS
@@ -758,10 +765,8 @@ flow_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Proj
 # Filter these predictions for just the ones at our BKT COMID sites and just for the years of interest and just for winter months (december-february)
 # also center and scale the flow
 flow_data2 <- flow_data %>%
-  inner_join(as.data.frame(BKT_COMID_logDens_wide[,1:3]), by = c("COMID" = "COMID")) 
-  # mutate(Max_0.9Q_SpringFlow_Scaled = scale(Max_0.9Q_SpringFlow),
-  #        Max_0.9Q_WinterFlow_Scaled = scale(Max_0.9Q_WinterFlow),
-  #        Mean_EstQ_WinterFlow_Scaled = scale(Mean_EstQ_WinterFlow))
+  filter(Year %in% seq(1995,2015)) %>% 
+  right_join(BKT_COMID_logDens_wide_unique[,1:3], by = c("COMID" = "COMID")) 
   
 
 # widen the data to stick it in Sncf
@@ -773,7 +778,7 @@ flow_data2_wide <- dcast(data = flow_data2,
 # Now, calculate spatial synchrony in the time series using the Sncf() function
 Flow.COMID.corr <- Sncf(x = flow_data2_wide$Long,
                         y = flow_data2_wide$Lat,
-                        z = flow_data2_wide[,4:39],
+                        z = flow_data2_wide[,4:24],
                         resamp = 1000, 
                         latlon = T,
                         xmax = ((2/3)*max(na.omit(gcdist(flow_data2_wide$Long, flow_data2_wide$Lat)))))
@@ -823,8 +828,8 @@ SummTemp_data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology 
 # Join in COMIDs
 # data are already selected for summer and scaled
 SummTemp_data2 <- SummTemp_data %>% 
-  inner_join(BKT_COMID_logDens_wide[,1:3]) %>% 
-  filter(Year %in% seq(from = 1980, to = 2015, by = 1))
+  right_join(BKT_COMID_logDens_wide_unique[,1:3]) %>% 
+  filter(Year %in% seq(from = 1995, to = 2015, by = 1))
 
 # widen the data to stick it in Sncf
 SummTemp_data2_wide <- dcast(data = SummTemp_data2, 
@@ -834,7 +839,7 @@ SummTemp_data2_wide <- dcast(data = SummTemp_data2,
 # Now, calculate spatial synchrony in the time series using the Sncf() function
 SummTemp.COMID.corr <- Sncf(x = SummTemp_data2_wide$Long,
                             y = SummTemp_data2_wide$Lat,
-                            z = SummTemp_data2_wide[,4:39],
+                            z = SummTemp_data2_wide[,4:24],
                             resamp = 1000, 
                             latlon = T,
                             xmax = ((2/3)*max(na.omit(gcdist(SummTemp_data2_wide$Long, SummTemp_data2_wide$Lat)))))
@@ -882,8 +887,9 @@ SE_precip_hourly <- fread(here("Data", "SE_precip.csv"))
 
 # set missing data to NA and filter out low elevation sites (avg trout site elevation is ~630m)
 # warning about "NAs introduced by coercion" is okay here because lat,long columns contain the word "unknown", which cannot be converted to numeric
+SE_precip_hourly[SE_precip_hourly == 25399.75] <- NA # remove the NA value
+
 SE_precip_hourly <- SE_precip_hourly %>% 
-  na_if(25399.75) %>% # remove the NA value
   #group_by(STATION) %>% 
   mutate(Date = ymd_hm(DATE),
          Elev_m = as.numeric(ELEVATION),
@@ -1093,69 +1099,19 @@ SummAirTempObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(SummAirTempObs
 ########################################
 # Create correlogams that combine temperature, flow, AND log BKT density
 
-# uses 4 colors from rcolorbrewer's "dark2" pallete
-colors1 <- c("Winter Flow" = "#1b9e77",
-             "Air Temp" = "#d95f02",
-            "Water Temp" = "#7570b3",
-            "BKT Density" = "#e7298a")
+names <- c("Winter Flow",
+           "Summer Water Temp",
+           "Summer Air Temp",
+           "Winter Precip",
+           "YOY Density",
+           "Adult Density")
 
-compound_corrgram1.plot <- ggplot() +
-  # log BKT density (both age classes)
-  geom_ribbon(data = BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "BKT Log Density"),
-              alpha = 0.5) +
-  geom_line(data = BKT.COMID.logDens.corr.pred.df,
-            aes(x = x, y = y)) +
-  geom_hline(yintercept = BKT_COMID_logDens.corr$real$cbar,
-             linetype = "dashed",
-             color = "#e7298a",
-             alpha = 0.5) +
-  # Winter Flow
-  geom_ribbon(data = Flow.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Max 90th Percentile\nEstimated Monthly Winter Flow"),
-              alpha = 0.5) +
-  geom_line(data = Flow.COMID.corr.pred.df,
-            aes(x = x, y = y)) +
-  geom_hline(yintercept = Flow.COMID.corr$real$cbar,
-             linetype = "dashed",
-             color = "#1b9e77",
-             alpha = 0.5) +
-  # Summer Water Temp
-  geom_ribbon(data = SummWaterTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Water Temp"),
-              alpha = 0.5) +
-  geom_line(data = SummWaterTempObs.COMID.corr.pred.df,
-            aes(x = x, y = y)) +
-  geom_hline(yintercept = SummWaterTempObs.COMID.corr$real$cbar,
-             linetype = "dashed",
-             color = "#7570b3",
-             alpha = 0.5) +
-  # Summer Air Temp
-  geom_ribbon(data = SummAirTempObs.COMID.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Mean Max Daily Observed\nSummer Air Temp"),
-              alpha = 0.5) +
-  geom_line(data = SummAirTempObs.COMID.corr.pred.df,
-            aes(x = x, y = y)) +
-  geom_hline(yintercept = SummAirTempObs.COMID.corr$real$cbar,
-             linetype = "dashed",
-             color = "#d95f02",
-             alpha = 0.5) +
-  # Formatting
-  geom_hline(yintercept = 0) +
-  theme_classic() +
-  lims(y = c(-0.25, 1)) +
-  labs(x = "Pairwise Distance (km)",
-       y = "Correlation",
-       fill = "Legend") +
-  scale_fill_manual(values = colors1)
-
-
-colors2 <- c("Winter Flow" = "#1b9e77",
-             "Summer Air Temp" = "#d95f02",
-             "Summer Water Temp" = "#e6ab02",
-             "Winter Precip" = "#7570b3",
-             "YOY BKT Density" = "#e7298a",
-             "Adult BKT Density" = "#66a61e")
+colors <- c("#1b9e77",
+            "#e6ab02",
+            "#d95f02",
+            "#7570b3",
+            "#e7298a",
+            "#66a61e")
 
 compound_corrgram2.plot <- ggplot() +
   # Winter Flow
@@ -1200,7 +1156,7 @@ compound_corrgram2.plot <- ggplot() +
               alpha = 0.5) +
   # log YOY density
   geom_ribbon(data = YOY_BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "YOY BKT Density"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "YOY Density"),
               alpha = 0.5) +
   geom_line(data = YOY_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1210,7 +1166,7 @@ compound_corrgram2.plot <- ggplot() +
              alpha = 0.5) +
   # log adult density
   geom_ribbon(data = Adult_BKT.COMID.logDens.corr.boot.df,
-              aes(x = x, ymin = ymin, ymax = ymax, fill = "Adult BKT Density"),
+              aes(x = x, ymin = ymin, ymax = ymax, fill = "Adult Density"),
               alpha = 0.5) +
   geom_line(data = Adult_BKT.COMID.logDens.corr.pred.df,
             aes(x = x, y = y)) +
@@ -1223,11 +1179,10 @@ compound_corrgram2.plot <- ggplot() +
   theme_classic() +
   lims(y = c(-0.25, 1)) +
   labs(x = "Pairwise Distance (km)",
-       y = "Correlation",
-       fill = "Legend") +
-  scale_fill_manual(values = colors2) +
+       y = "Correlation") +
+  scale_fill_manual(breaks = names, values = colors) +
   theme(legend.title=element_blank()) +
-  guides(fill = guide_legend(override.aes = list(alpha = 0.5)))
+  guides(fill = guide_legend(override.aes = list(alpha = c(0.5))))
 
 # Save to SDAFS 2023 folder for presentation
 # ggsave("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Spatial Synchrony in Trout Project/SDAFS 2023 Presentation/Compound_Corrgram3.jpeg",
@@ -1267,7 +1222,7 @@ Corrgram_Covar_Summary.table <- data.frame(Covar = c("Mean Estimated Monthly Win
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v2.0")
+run_dir <- here("results", "v3.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

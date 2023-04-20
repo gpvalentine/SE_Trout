@@ -16,7 +16,7 @@ library(sp)
 YOY_ICCs <- YOY_randomEffects_params %>%
   rownames_to_column(., "param") %>%
   filter(str_detect(param, "ICC.YOY\\[")) %>%
-  cbind(segment_data)
+  cbind(segment_data_RE)
 
 YOY_ICCs.sp <- YOY_ICCs
 coordinates(YOY_ICCs.sp) <- ~Long + Lat
@@ -53,7 +53,7 @@ YOY_ICCs_semivariogram.plot <- ggplot(data = as.data.frame(YOY_ICC_semivariogram
 YOY_Betas_SummTemp <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "beta\\[1,")) %>% # this filters out the beta[1,] parameters
-  cbind(segment_data)
+  cbind(segment_data_CE)
 
 YOY_Betas_SummTemp.sp <- YOY_Betas_SummTemp
 coordinates(YOY_Betas_SummTemp.sp) <- ~Long + Lat
@@ -88,7 +88,7 @@ YOY_SummTempBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Su
 YOY_Betas_WintFlow <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "beta\\[2,")) %>% # this filters out the beta[1,] parameters
-  cbind(segment_data)
+  cbind(segment_data_CE)
 
 YOY_Betas_WintFlow.sp <- YOY_Betas_WintFlow
 coordinates(YOY_Betas_WintFlow.sp) <- ~Long + Lat
@@ -123,7 +123,7 @@ YOY_WintFlowBetas_semivariogram.plot <- ggplot(data = as.data.frame(YOY_Betas_Wi
 YOY_Betas_SprFlow <- YOY_climateEffects_params %>% 
   rownames_to_column(., "param") %>% 
   filter(str_detect(param, "beta\\[3,")) %>% # this filters out the beta[1,] parameters
-  cbind(segment_data)
+  cbind(segment_data_CE)
 
 YOY_Betas_SprFlow.sp <- YOY_Betas_SprFlow
 coordinates(YOY_Betas_SprFlow.sp) <- ~Long + Lat
@@ -179,7 +179,7 @@ YOY_climate_effects_semivariogram.plot <- ggplot() +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v2.0")
+run_dir <- here("results", "v3.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

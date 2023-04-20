@@ -1667,6 +1667,7 @@ save.image()
 # make a dataframe of segments with coordinates for mapping
 COMIDs_agency <- SE_Site_Final %>% 
   filter(COMID %in% p1_YOY_CE$COMID) %>% 
+  left_join(source_agency_crosswalk) %>% 
   group_by(COMID,
            Agency) %>% 
   summarize(State = first(State),
@@ -1677,7 +1678,6 @@ COMIDs_agency <- SE_Site_Final %>%
 segment_data_CE <- data.frame(Agency = agencies) %>% 
   mutate(agencyNum = row_number()) %>% 
   right_join(p1_YOY_CE[,c("COMID", "Agency")], by = c("agencyNum" = "Agency")) %>% 
-  left_join(source_agency_crosswalk) %>% 
   left_join(COMIDs_agency, by = c("COMID", "Agency")) %>% 
   dplyr::select(-agencyNum) %>% 
   arrange(COMID)
@@ -1685,7 +1685,6 @@ segment_data_CE <- data.frame(Agency = agencies) %>%
 segment_data_RE <- data.frame(Agency = agencies_RE) %>% 
   mutate(agencyNum = row_number()) %>% 
   right_join(p1_YOY_RE[,c("COMID", "Agency")], by = c("agencyNum" = "Agency")) %>% 
-  left_join(source_agency_crosswalk) %>% 
   left_join(COMIDs_agency, by = c("COMID", "Agency")) %>% 
   dplyr::select(-agencyNum) %>% 
   arrange(COMID)
@@ -1744,24 +1743,18 @@ segment_data_RE_S <- segment_data_RE %>%
 
 ######################################
 # Create a table of agency data
-
-# Get string of agencies and their locations
-agencies2 <- data.frame(Agency = agencies) %>% 
-  left_join(source_agency_crosswalk)
-
 agencies.table <- p1_YOY_CE %>% 
   .[,c(1:34, 37)] %>% 
   pivot_longer(cols = 1:34,
                names_to = "Year",
                values_to = "Count") %>% 
-  group_by(Agency, Year) %>% 
+  group_by(agency = Agency, Year) %>% 
   dplyr::summarise(Count = sum(Count, na.rm = T)) %>% 
   ungroup(Year) %>% 
   filter(Count > 0) %>% 
   dplyr::summarise(Data_Range = paste(min(Year), "-", max(Year)),
                    NYears_Data = n()) %>% 
-  cbind(Agency = agencies2$Agency) %>% 
-  dplyr::select(-Agency) %>% 
+  cbind(Agency = agencies) %>%
   .[,c("Agency", "Data_Range", "NYears_Data")]
 
 #####################################
@@ -2171,7 +2164,7 @@ StreamCat_Data <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology
 StreamCat_Data <- StreamCat_Data %>% 
   filter(COMID %in% segment_data_RE$COMID)
 
-ICC_corr_data <- YOY_ICCs.table[,c(2,9,12:14)] %>%
+ICC_corr_data <- YOY_ICCs.table[,c(2,9,11:13)] %>%
   left_join(NHDplus_data) %>% 
   left_join(StreamCat_Data) %>% 
   select(where(is.numeric),
@@ -2376,9 +2369,9 @@ YOY_climate_effects.table <- rbind(YOY_climateEffects_params %>%
                                      filter(str_detect(param, "beta\\[3,")) %>% 
                                      select(mean)) %>% 
   cbind(segment_data_CE,
-        rbind(data.frame(covar = rep("Summer Temperature", 164)),
-              data.frame(covar = rep("Winter Flow", 164)),
-              data.frame(covar = rep("Spring Flow", 164)))) %>% 
+        rbind(data.frame(covar = rep("Summer Temperature", 144)),
+              data.frame(covar = rep("Winter Flow", 144)),
+              data.frame(covar = rep("Spring Flow", 144)))) %>% 
   mutate(bin = cut(mean, breaks = c(Inf, 2, 1, -1, -2, -Inf)))
 
 # reorder the covariates so that summer temperature plots first
@@ -2404,23 +2397,23 @@ YOY_SummTemp_betas.plot <- ggplot() +
   theme_classic() 
 
 # plot for presentations
-ggplot() +
-  geom_polygon(data = US_states,
-               aes(x = long, y = lat, group = group),
-               color = "black", fill = NA) +
-  geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
-             aes(x = Long, y = Lat, color = mean),
-             alpha = 0.5) +
-  geom_segment(aes(x = -85, xend = -75,
-                   y = 37.13, yend = 37.13),
-             linetype = "dashed") +
-  coord_map("albers",
-            parameters = c(29.5, 45.5),
-            xlim = c(-83.75, -76),
-            ylim = c(33, 41.7)) +
-  labs(color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis(option = "H") +
-  theme_void()
+# ggplot() +
+#   geom_polygon(data = US_states,
+#                aes(x = long, y = lat, group = group),
+#                color = "black", fill = NA) +
+#   geom_point(data = YOY_climate_effects.table[YOY_climate_effects.table$covar == "Summer Temperature",],
+#              aes(x = Long, y = Lat, color = mean),
+#              alpha = 0.5) +
+#   geom_segment(aes(x = -85, xend = -75,
+#                    y = 37.13, yend = 37.13),
+#              linetype = "dashed") +
+#   coord_map("albers",
+#             parameters = c(29.5, 45.5),
+#             xlim = c(-83.75, -76),
+#             ylim = c(33, 41.7)) +
+#   labs(color = TeX(r'($\beta$ Value)')) +
+#   scale_color_viridis(option = "H") +
+#   theme_void()
 
 YOY_WintFlow_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
@@ -2523,7 +2516,7 @@ count_vs_SprFlow.plot <- ggplot(count_vs_climate_data) +
 
 ####
 # are covariate effects (betas) correlated geographically?
-chart.Correlation(pivot_wider(YOY_climate_effects.table, names_from = covar, values_from = mean)[,5:10], method = "spearman")
+#chart.Correlation(pivot_wider(YOY_climate_effects.table, names_from = covar, values_from = mean)[,4:10], method = "spearman")
 
 beta_corr_data <- YOY_climate_effects.table %>% 
   pivot_wider(names_from = covar, values_from = mean) %>% 
@@ -2684,9 +2677,9 @@ cov_effect_variances.table <- data.frame(Life_Stage = c(rep("YOY", 3), rep("Adul
 # Summarize detection probability in table
 
 Detect_probs <- data.frame(
-  Agency = rep(agencies2$Agency, times = 2),
-  Life_Stage = c(rep("YOY", times = 12),
-                rep("Adult", times = 12))) %>% 
+  Agency = rep(agencies, times = 2),
+  Life_Stage = c(rep("YOY", times = 9),
+                rep("Adult", times = 9))) %>% 
   # add in jagsUI model summary values
   cbind(rbind(YOY_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4],
               Adult_climateEffects_params[c("p[1]", "p[2]", "p[3]","p[4]", "p[5]", "p[6]", "p[7]", "p[8]", "p[9]"),1:4]))
@@ -2694,7 +2687,7 @@ Detect_probs <- data.frame(
 
 
 # and make a plot to visualize
-Detect_probs.plot <- ggplot(data = Detect_probs.table) +
+Detect_probs.plot <- ggplot(data = Detect_probs) +
   geom_linerange(aes(y = Agency,
                      xmin = `95%_HPDL`, #includes 95% highest density intervals
                      xmax = `95%_HPDU`,
@@ -2756,7 +2749,7 @@ CVs.plot <- ggplot(CVs.table) +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v2.0")
+run_dir <- here("results", "v3.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]
