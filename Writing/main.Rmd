@@ -88,8 +88,6 @@ load(file = file.path(run_dir, "tables.rdata"))
 
 \vfill
 
-\noindent This draft manuscript is distributed solely for purposes of scientific peer review. Its content is deliberative and predecisional, so it must not be disclosed or released by reviewers. Because the manuscript has not yet been approved for publication by the U.S. Geological Survey (USGS), it does not represent any official USGS finding or policy.
-
 \newpage
 \pagenumbering{arabic}
 
@@ -122,7 +120,7 @@ load(file = file.path(run_dir, "tables.rdata"))
 \newpage
 
 # Acknowledgements
-We thank the numerous agencies and organizations that provided the data utilized in this study. This research was funded by Cooperative Agreement No. G21AC10205 from the U.S. Geological Survey Southeast Climate Adaptation Science Center, and Cooperative Agreement No. F20AC11372 from the U.S. Fish and Wildlife Service. The findings and conclusions in this report are those of the authors and do not necessarily represent the views of the U.S. Fish and Wildlife Service. 
+We thank the numerous agencies and organizations that provided the data utilized in this study. This research was funded by Cooperative Agreement No. G21AC10205 from the U.S. Geological Survey Southeast Climate Adaptation Science Center, and Cooperative Agreement No. F20AC11372 from the U.S. Fish and Wildlife Service. The findings and conclusions in this report are those of the authors and do not necessarily represent the views of the U.S. Fish and Wildlife Service. Any use of trade, product, or firm names is for descriptive purposes only and does not imply endorsement by the U.S. Government.
 
 # Conflict of interest statement
 The authors have no conflicts of interest to declare.
@@ -138,6 +136,26 @@ Data are archived at sciencebase.gov with DOI 10.5066/P9DQID6G.
 ```
 
 \newpage
+
+\begin{center}
+
+SPATIAL ASYNCHRONY AND CROSS-SCALE CLIMATE INTERACTIONS IN POPULATIONS OF A COLDWATER STREAM FISH
+
+George P. Valentine, Dept. Fish, Wildlife, and Conservation Biology and Graduate Degree Program in Ecology, Colorado State University\\
+Xinyi Lu, Dept. Fish, Wildlife, and Conservation Biology, Colorado State University\\
+Evan S. Childress, Shenandoah National Park\\
+C. Andrew Dolloff, U.S. Forest Service Southern Research Station\\
+Nathaniel P. Hitt, U.S. Geological Survey Eastern Ecological Science Center\\
+Matthew A. Kulp, Great Smoky Mountains National Park\\
+Benjamin H. Letcher, U.S. Geological Survey Eastern Ecological Science Center\\
+Kasey C. Pregler, Dept. of Env. Science, Policy, and Management, University of California Berkeley\\
+Jacob M. Rash, North Carolina Wildlife Resources Commission\\
+Mevin B. Hooten, Dept. Statistics and Data Sciences, The University of Texas at Austin\\
+Yoichiro Kanno, Dept. Fish, Wildlife, and Conservation Biology and Graduate Degree Program in Ecology, Colorado State University
+
+Any use of trade, product, or firm names is for descriptive purposes only and does not imply endorsement by the U.S. Government.
+
+\end{center}
 
 # Appendix
 
