@@ -985,6 +985,13 @@ WinterPrecipObs.COMID.corr.boot.df <- data.frame(x = matrix(unlist(WinterPrecipO
 NS204_daily_temps <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_temps_daily.csv")
 NS204_sites <- fread("C:/Users/georgepv/OneDrive - Colostate/SE Eco-Hydrology Project/Data/Temperature/Temperature Data Working/Dolloff Temperature Data/Final Files/Final Temperature Data/NS204_sites.csv")
   
+# are daily air and water temperatures correlated?
+library(corrplot)
+temp_corr <- NS204_daily_temps %>% 
+  select(AirTemp_c_MEAN,
+         WaterTemp_c_MEAN)
+daily_airwater_corr.val <- cor(temp_corr, method="pearson", use="pairwise.complete.obs")[2,1]
+
 obs_temp <- NS204_daily_temps %>% 
   left_join(NS204_sites[,c("SiteID", "COMID", "Lat", "Long")]) %>% 
   dplyr::select(COMID,
@@ -1222,7 +1229,7 @@ Corrgram_Covar_Summary.table <- data.frame(Covar = c("Mean Estimated Monthly Win
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v3.0")
+run_dir <- here::here("results", "v4.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

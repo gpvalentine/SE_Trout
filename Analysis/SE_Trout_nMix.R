@@ -1908,7 +1908,7 @@ SSR_1.plot <- stock_recruit_data %>%
   geom_smooth(aes(group = as.factor(COMID)), 
               method = "lm", 
               color = "black",
-              size = 0.33,
+              linewidth = 0.33,
               se = FALSE) +
   geom_smooth(method = "lm", 
               color = "blue",
@@ -1925,7 +1925,7 @@ SSR_2.plot <- stock_recruit_data %>%
   geom_smooth(aes(group = as.factor(COMID)), 
               method = "lm", 
               color = "black",
-              size = 0.33,
+              linewidth = 0.33,
               se = FALSE) +
   geom_smooth(method = "lm", 
               color = "blue",
@@ -2095,7 +2095,7 @@ YOY_ICC_map.plot <- ggplot() +
   geom_point(data = YOY_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
   geom_point(data = head(arrange(YOY_ICCs.table, mean), 5),
-             aes(x = Long, y = Lat), shape = 3) + # crosses
+             aes(x = Long, y = Lat), shape = 4, size = 2, stroke = 1) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -2104,7 +2104,7 @@ YOY_ICC_map.plot <- ggplot() +
        y = "Lat",
        #title = "Posterior ICC Means for YOY BKT",
        color = "ICC") +
-  scale_color_viridis(option = "H") +
+  scale_color_viridis() +
   theme_classic()  
   #theme(text = element_text(family =  "serif"))
 
@@ -2136,7 +2136,7 @@ Adult_ICC_map.plot <- ggplot() +
   geom_point(data = Adult_ICCs.table, 
              aes(x = Long, y = Lat, color = mean), alpha = 0.5) +
   geom_point(data = head(arrange(Adult_ICCs.table, mean), 5),
-             aes(x = Long, y = Lat), shape = 3) + # crosses
+             aes(x = Long, y = Lat), shape = 4, size = 2, stroke = 1) + # crosses
   coord_map("bonne",
             lat0 = 40,
             xlim = c(-85, -74),
@@ -2145,7 +2145,7 @@ Adult_ICC_map.plot <- ggplot() +
        y = "Lat",
        #title = "Posterior ICC Means for Adult BKT",
        color = "ICC") +
-  scale_color_viridis(option = "H") +
+  scale_color_viridis() +
   theme_classic() 
   #theme(text = element_text(family =  "serif"))
 
@@ -2275,63 +2275,120 @@ Adult_mu.betas.table <- data.frame(rbind(data.frame(subregion = rep("All", 3)),
   
 # Summarize samples of covariate effects in table
 # plot data
-mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_climateEffects$sims.list$mu.beta[,1]),
-                                                             as.matrix(YOY_climateEffects$sims.list$mu.beta[,2]),
-                                                             as.matrix(YOY_climateEffects$sims.list$mu.beta[,3])),
+# mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,1]),
+#                                                              as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,2]),
+#                                                              as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,3])),
+#                                           covar = rep(c("Summer Air Temperature",
+#                                                         "Winter Flow",
+#                                                         "Spring Flow"),
+#                                                       each = length(YOY_climateEffects_N$sims.list$mu.beta[,1])),
+#                                           life_stage = rep("YOY"),
+#                                           subregion = rep("North")),
+#                                data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,1]),
+#                                                              as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,2]),
+#                                                              as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,3])),
+#                                           covar = rep(c("Summer Air Temperature",
+#                                                         "Winter Flow",
+#                                                         "Spring Flow"),
+#                                                       each = length(Adult_climateEffects_N$sims.list$mu.beta[,1])),
+#                                           life_stage = rep("Adult"),
+#                                           subregion = rep("North")),
+#                                data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,1]),
+#                                                              as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,2]),
+#                                                              as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,3])),
+#                                           covar = rep(c("Summer Air Temperature",
+#                                                         "Winter Flow",
+#                                                         "Spring Flow"),
+#                                                       each = length(YOY_climateEffects_S$sims.list$mu.beta[,1])),
+#                                           life_stage = rep("YOY"),
+#                                           subregion = rep("South")),
+#                                data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,1]),
+#                                                              as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,2]),
+#                                                              as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,3])),
+#                                           covar = rep(c("Summer Air Temperature",
+#                                                         "Winter Flow",
+#                                                         "Spring Flow"),
+#                                                       each = length(Adult_climateEffects_S$sims.list$mu.beta[,1])),
+#                                           life_stage = rep("Adult"),
+#                                           subregion = rep("South")),
+#                                data.frame(sample_val = rbind(as.matrix(YOY_climateEffects$sims.list$mu.beta[,1]),
+#                                                              as.matrix(YOY_climateEffects$sims.list$mu.beta[,2]),
+#                                                              as.matrix(YOY_climateEffects$sims.list$mu.beta[,3])),
+#                                           covar = rep(c("Summer Air Temperature",
+#                                                         "Winter Flow",
+#                                                         "Spring Flow"),
+#                                                       each = length(YOY_climateEffects$sims.list$mu.beta[,1])),
+#                                           life_stage = rep("YOY"),
+#                                           subregion = rep("Both")),
+#                                data.frame(sample_val = rbind(as.matrix(Adult_climateEffects$sims.list$mu.beta[,1]),
+#                                                              as.matrix(Adult_climateEffects$sims.list$mu.beta[,2]),
+#                                                              as.matrix(Adult_climateEffects$sims.list$mu.beta[,3])),
+#                                           covar = rep(c("Summer Air Temperature",
+#                                                         "Winter Flow",
+#                                                         "Spring Flow"),
+#                                                       each = length(Adult_climateEffects$sims.list$mu.beta[,1])),
+#                                           life_stage = rep("Adult"),
+#                                           subregion = rep("Both")))
+
+# Summarize samples of covariate effects in table - ADAPTED TO SUBSET FOR 95% CI of samples
+mu.beta_samples.table <- rbind(data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,1][YOY_climateEffects_N$sims.list$mu.beta[,1] > quantile(YOY_climateEffects_N$sims.list$mu.beta[,1], 0.025) & YOY_climateEffects_N$sims.list$mu.beta[,1] < quantile(YOY_climateEffects_N$sims.list$mu.beta[,1], 0.975)]),
+                                                             as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,2][YOY_climateEffects_N$sims.list$mu.beta[,2] > quantile(YOY_climateEffects_N$sims.list$mu.beta[,2], 0.025) & YOY_climateEffects_N$sims.list$mu.beta[,2] < quantile(YOY_climateEffects_N$sims.list$mu.beta[,2], 0.975)]),
+                                                             as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,3][YOY_climateEffects_N$sims.list$mu.beta[,3] > quantile(YOY_climateEffects_N$sims.list$mu.beta[,3], 0.025) & YOY_climateEffects_N$sims.list$mu.beta[,3] < quantile(YOY_climateEffects_N$sims.list$mu.beta[,3], 0.975)])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(YOY_climateEffects$sims.list$mu.beta[,1])),
+                                                      each = length(YOY_climateEffects_N$sims.list$mu.beta[,1][YOY_climateEffects_N$sims.list$mu.beta[,1] > quantile(YOY_climateEffects_N$sims.list$mu.beta[,1], 0.025) & YOY_climateEffects_N$sims.list$mu.beta[,1] < quantile(YOY_climateEffects_N$sims.list$mu.beta[,1], 0.975)])),
                                           life_stage = rep("YOY"),
-                                          subregion = rep("N+S")),
-                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects$sims.list$mu.beta[,1]),
-                                                             as.matrix(Adult_climateEffects$sims.list$mu.beta[,2]),
-                                                             as.matrix(Adult_climateEffects$sims.list$mu.beta[,3])),
+                                          subregion = rep("North")),
+                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,1][Adult_climateEffects_N$sims.list$mu.beta[,1] > quantile(Adult_climateEffects_N$sims.list$mu.beta[,1], 0.025) & Adult_climateEffects_N$sims.list$mu.beta[,1] < quantile(Adult_climateEffects_N$sims.list$mu.beta[,1], 0.975)]),
+                                                             as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,2][Adult_climateEffects_N$sims.list$mu.beta[,2] > quantile(Adult_climateEffects_N$sims.list$mu.beta[,2], 0.025) & Adult_climateEffects_N$sims.list$mu.beta[,2] < quantile(Adult_climateEffects_N$sims.list$mu.beta[,2], 0.975)]),
+                                                             as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,3][Adult_climateEffects_N$sims.list$mu.beta[,3] > quantile(Adult_climateEffects_N$sims.list$mu.beta[,3], 0.025) & Adult_climateEffects_N$sims.list$mu.beta[,3] < quantile(Adult_climateEffects_N$sims.list$mu.beta[,3], 0.975)])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(Adult_climateEffects$sims.list$mu.beta[,1])),
+                                                      each = length(Adult_climateEffects_N$sims.list$mu.beta[,1][Adult_climateEffects_N$sims.list$mu.beta[,1] > quantile(Adult_climateEffects_N$sims.list$mu.beta[,1], 0.025) & Adult_climateEffects_N$sims.list$mu.beta[,1] < quantile(Adult_climateEffects_N$sims.list$mu.beta[,1], 0.975)])),
                                           life_stage = rep("Adult"),
-                                          subregion = rep("N+S")),
-                               data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,1]),
-                                                             as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,2]),
-                                                             as.matrix(YOY_climateEffects_N$sims.list$mu.beta[,3])),
+                                          subregion = rep("North")),
+                               data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,1][YOY_climateEffects_S$sims.list$mu.beta[,1] > quantile(YOY_climateEffects_S$sims.list$mu.beta[,1], 0.025) & YOY_climateEffects_S$sims.list$mu.beta[,1] < quantile(YOY_climateEffects_S$sims.list$mu.beta[,1], 0.975)]),
+                                                             as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,2][YOY_climateEffects_S$sims.list$mu.beta[,2] > quantile(YOY_climateEffects_S$sims.list$mu.beta[,2], 0.025) & YOY_climateEffects_S$sims.list$mu.beta[,2] < quantile(YOY_climateEffects_S$sims.list$mu.beta[,2], 0.975)]),
+                                                             as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,3][YOY_climateEffects_S$sims.list$mu.beta[,3] > quantile(YOY_climateEffects_S$sims.list$mu.beta[,3], 0.025) & YOY_climateEffects_S$sims.list$mu.beta[,3] < quantile(YOY_climateEffects_S$sims.list$mu.beta[,3], 0.975)])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(YOY_climateEffects_N$sims.list$mu.beta[,1])),
+                                                      each = length(YOY_climateEffects_S$sims.list$mu.beta[,1][YOY_climateEffects_S$sims.list$mu.beta[,1] > quantile(YOY_climateEffects_S$sims.list$mu.beta[,1], 0.025) & YOY_climateEffects_S$sims.list$mu.beta[,1] < quantile(YOY_climateEffects_S$sims.list$mu.beta[,1], 0.975)])),
                                           life_stage = rep("YOY"),
-                                          subregion = rep("N")),
-                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,1]),
-                                                             as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,2]),
-                                                             as.matrix(Adult_climateEffects_N$sims.list$mu.beta[,3])),
+                                          subregion = rep("South")),
+                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,1][Adult_climateEffects_S$sims.list$mu.beta[,1] > quantile(Adult_climateEffects_S$sims.list$mu.beta[,1], 0.025) & Adult_climateEffects_S$sims.list$mu.beta[,1] < quantile(Adult_climateEffects_S$sims.list$mu.beta[,1], 0.975)]),
+                                                             as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,2][Adult_climateEffects_S$sims.list$mu.beta[,2] > quantile(Adult_climateEffects_S$sims.list$mu.beta[,2], 0.025) & Adult_climateEffects_S$sims.list$mu.beta[,2] < quantile(Adult_climateEffects_S$sims.list$mu.beta[,2], 0.975)]),
+                                                             as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,3][Adult_climateEffects_S$sims.list$mu.beta[,3] > quantile(Adult_climateEffects_S$sims.list$mu.beta[,3], 0.025) & Adult_climateEffects_S$sims.list$mu.beta[,3] < quantile(Adult_climateEffects_S$sims.list$mu.beta[,3], 0.975)])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(Adult_climateEffects_N$sims.list$mu.beta[,1])),
+                                                      each = length(Adult_climateEffects_S$sims.list$mu.beta[,1][Adult_climateEffects_S$sims.list$mu.beta[,1] > quantile(Adult_climateEffects_S$sims.list$mu.beta[,1], 0.025) & Adult_climateEffects_S$sims.list$mu.beta[,1] < quantile(Adult_climateEffects_S$sims.list$mu.beta[,1], 0.975)])),
                                           life_stage = rep("Adult"),
-                                          subregion = rep("N")),
-                               data.frame(sample_val = rbind(as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,1]),
-                                                             as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,2]),
-                                                             as.matrix(YOY_climateEffects_S$sims.list$mu.beta[,3])),
+                                          subregion = rep("South")),
+                               data.frame(sample_val = rbind(as.matrix(YOY_climateEffects$sims.list$mu.beta[,1][YOY_climateEffects$sims.list$mu.beta[,1] > quantile(YOY_climateEffects$sims.list$mu.beta[,1], 0.025) & YOY_climateEffects$sims.list$mu.beta[,1] < quantile(YOY_climateEffects$sims.list$mu.beta[,1], 0.975)]),
+                                                             as.matrix(YOY_climateEffects$sims.list$mu.beta[,2][YOY_climateEffects$sims.list$mu.beta[,2] > quantile(YOY_climateEffects$sims.list$mu.beta[,2], 0.025) & YOY_climateEffects$sims.list$mu.beta[,2] < quantile(YOY_climateEffects$sims.list$mu.beta[,2], 0.975)]),
+                                                             as.matrix(YOY_climateEffects$sims.list$mu.beta[,3][YOY_climateEffects$sims.list$mu.beta[,3] > quantile(YOY_climateEffects$sims.list$mu.beta[,3], 0.025) & YOY_climateEffects$sims.list$mu.beta[,3] < quantile(YOY_climateEffects$sims.list$mu.beta[,3], 0.975)])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(YOY_climateEffects_S$sims.list$mu.beta[,1])),
+                                                      each = length(YOY_climateEffects$sims.list$mu.beta[,1][YOY_climateEffects$sims.list$mu.beta[,1] > quantile(YOY_climateEffects$sims.list$mu.beta[,1], 0.025) & YOY_climateEffects$sims.list$mu.beta[,1] < quantile(YOY_climateEffects$sims.list$mu.beta[,1], 0.975)])),
                                           life_stage = rep("YOY"),
-                                          subregion = rep("S")),
-                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,1]),
-                                                             as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,2]),
-                                                             as.matrix(Adult_climateEffects_S$sims.list$mu.beta[,3])),
+                                          subregion = rep("Both")),
+                               data.frame(sample_val = rbind(as.matrix(Adult_climateEffects$sims.list$mu.beta[,1][Adult_climateEffects$sims.list$mu.beta[,1] > quantile(Adult_climateEffects$sims.list$mu.beta[,1], 0.025) & Adult_climateEffects$sims.list$mu.beta[,1] < quantile(Adult_climateEffects$sims.list$mu.beta[,1], 0.975)]),
+                                                             as.matrix(Adult_climateEffects$sims.list$mu.beta[,2][Adult_climateEffects$sims.list$mu.beta[,2] > quantile(Adult_climateEffects$sims.list$mu.beta[,2], 0.025) & Adult_climateEffects$sims.list$mu.beta[,2] < quantile(Adult_climateEffects$sims.list$mu.beta[,2], 0.975)]),
+                                                             as.matrix(Adult_climateEffects$sims.list$mu.beta[,3][Adult_climateEffects$sims.list$mu.beta[,3] > quantile(Adult_climateEffects$sims.list$mu.beta[,3], 0.025) & Adult_climateEffects$sims.list$mu.beta[,3] < quantile(Adult_climateEffects$sims.list$mu.beta[,3], 0.975)])),
                                           covar = rep(c("Summer Air Temperature",
                                                         "Winter Flow",
                                                         "Spring Flow"),
-                                                      each = length(Adult_climateEffects_S$sims.list$mu.beta[,1])),
+                                                      each = length(Adult_climateEffects$sims.list$mu.beta[,1][Adult_climateEffects$sims.list$mu.beta[,1] > quantile(Adult_climateEffects$sims.list$mu.beta[,1], 0.025) & Adult_climateEffects$sims.list$mu.beta[,1] < quantile(Adult_climateEffects$sims.list$mu.beta[,1], 0.975)])),
                                           life_stage = rep("Adult"),
-                                          subregion = rep("S")))
+                                          subregion = rep("Both")))
+
 
 # Reorder the subregions so the N+S region plots first
-mu.beta_samples.table$subregion <- factor(mu.beta_samples.table$subregion, c("N+S", "N", "S"))
+mu.beta_samples.table$subregion <- factor(mu.beta_samples.table$subregion, c("North", "South", "Both"))
 # Reorder the covariates so that summer temperature plots first
 mu.beta_samples.table$covar <- factor(mu.beta_samples.table$covar, c("Summer Air Temperature", "Winter Flow", "Spring Flow"))
 
@@ -2352,7 +2409,7 @@ cov_effects.plot <- ggplot(mu.beta_samples.table) +
        y = element_blank(),
        fill = "Subregion") +
   scale_fill_brewer(palette = "Dark2",
-                    limits = c("N+S", "N", "S")) +
+                    limits = c("North", "South", "Both")) +
   scale_y_discrete(labels = function(x) str_wrap(x, width = 11))
 
 # map betas (segment-specific covariate effects) in space
@@ -2379,6 +2436,25 @@ YOY_climate_effects.table$covar <- factor(YOY_climate_effects.table$covar, c("Su
 
 library(latex2exp)
 
+YOY_betas.plot <- ggplot() +
+  geom_polygon(data = US_states,
+               aes(x = long, y = lat, group = group),
+               color = "black", fill = NA) +
+  geom_point(data = YOY_climate_effects.table,
+             aes(x = Long, y = Lat, color = mean),
+             alpha = 0.75) +
+  coord_map("bonne",
+            lat0 = 40,
+            xlim = c(-85, -76),
+            ylim = c(34.8, 39.7)) +
+  labs(x = "Long",
+       y = "Lat",
+       color = TeX(r'($\beta$ Value)')) +
+  #scale_color_viridis(option = "H") +
+  scale_color_binned(type = "viridis") +
+  theme_classic() +
+  facet_grid(covar ~ .)
+
 YOY_SummTemp_betas.plot <- ggplot() +
   geom_polygon(data = US_states,
                aes(x = long, y = lat, group = group),
@@ -2393,7 +2469,8 @@ YOY_SummTemp_betas.plot <- ggplot() +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis(option = "H") +
+  #scale_color_viridis(option = "H") +
+  scale_color_binned(type = "viridis") +
   theme_classic() 
 
 # plot for presentations
@@ -2429,7 +2506,8 @@ YOY_WintFlow_betas.plot <- ggplot() +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis(option = "H") +
+  #scale_color_viridis(option = "H") +
+  scale_color_binned(type = "viridis") +
   theme_classic() 
 
 # # plot for presentations
@@ -2465,7 +2543,8 @@ YOY_SprFlow_betas.plot <- ggplot() +
   labs(x = "Long",
        y = "Lat",
        color = TeX(r'($\beta$ Value)')) +
-  scale_color_viridis(option = "H") +
+  #scale_color_viridis(option = "H") +
+  scale_color_binned(type = "viridis") +
   theme_classic()
 
 # # plot for presentations
@@ -2558,7 +2637,7 @@ YOY_beta_corrs.table <- as.data.frame(YOY_beta_corrPlot$corrPos) %>%
 # betas are not really correlated with any of these site-level covars
 YOY_beta_corrs.table <- YOY_beta_corrs.table %>% 
   arrange(-abs(corr)) %>% 
-  .[4:13, c(1,2,5)]
+  .[1:10, c(1,2,5)]
 
 ####
 # What proportion of beta values are significant at 95% HDPIs for YOY?
@@ -2693,7 +2772,7 @@ Detect_probs.plot <- ggplot(data = Detect_probs) +
                      xmax = `95%_HPDU`,
                      color = Life_Stage),
                  position = position_dodge(.25),
-                 size = 0.5) +
+                 linewidth = 0.5) +
   geom_point(aes(y = Agency,
                  x = mean,
                  color = Life_Stage),
@@ -2747,9 +2826,9 @@ CVs.plot <- ggplot(CVs.table) +
 
 ########################################################
 # Export plots to the results folder
-
+save.image()
 # Save the directory to which to save results files
-run_dir <- here("results", "v3.0")
+run_dir <- here::here("results/v4.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]

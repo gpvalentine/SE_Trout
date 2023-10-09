@@ -179,9 +179,10 @@ YOY_climate_effects_semivariogram.plot <- ggplot() +
 # Export plots to the results folder
 
 # Save the directory to which to save results files
-run_dir <- here("results", "v3.0")
+run_dir <- here::here("results", "v4.0")
 
 plots <- ls()[str_detect(ls(), ".plot")]
 tables <- ls()[str_detect(ls(), ".table")]
 save(file = file.path(run_dir, "plots.RData"), list = plots)
 save(file = file.path(run_dir, "tables.RData"), list = tables)
+
