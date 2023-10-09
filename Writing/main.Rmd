@@ -1,7 +1,9 @@
 ---
 title: "Spatial asynchrony and cross-scale climate interactions in populations of a coldwater stream fish"
 author: 
-  - George P. Valentine, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University, george.valentine@colostate.edu
+  - George P. Valentine^[Corresponding Author], Dept. Fish, Wildlife, & Conservation Biology
+  - and Graduate Degree Program in Ecology, Colorado State University,
+  - george.valentine@colostate.edu
   - Xinyi Lu, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University
   - Evan S. Childress, Shenandoah National Park
   - C. Andrew Dolloff, U.S. Forest Service Southern Research Station
@@ -11,7 +13,9 @@ author:
   - Kasey C. Pregler, Dept. of Env. Science, Policy, & Management, University of California Berkeley
   - Jacob M. Rash, North Carolina Wildlife Resources Commission
   - Mevin B. Hooten, Dept. Statistics & Data Sciences, The University of Texas at Austin
-  - Yoichiro Kanno, Dept. Fish, Wildlife, & Conservation Biology, Colorado State University, yoichiro.kanno@colostate.edu
+  - Yoichiro Kanno, Dept. Fish, Wildlife, & Conservation Biology
+  - and Graduate Degree Program in Ecology, Colorado State University, 
+  - yoichiro.kanno@colostate.edu
 date: "`r Sys.Date()`"
 output:
   bookdown::pdf_document2:
@@ -34,7 +38,7 @@ linkcolor: blue
 bibliography: bibliography.bib
 csl: apa.csl
 params:
-  run_name: ["v2.0"]
+  run_name: ["v4.0"]
 ---
 
 ```{r setup, include=FALSE}
@@ -61,6 +65,8 @@ knitr::opts_chunk$set(echo = F,
                       message = F,
                       tidy.opts=list(width.cutoff=50))
 
+options(scipen=999) # turns off the use of scientific notation
+
 # Save the directory from which to pull results files
 run_dir <- here::here("results", params$run_name)
 
@@ -71,10 +77,18 @@ load(file = file.path(run_dir, "tables.rdata"))
 
 \newpage
 
-# Abstract
+# Abstract {-}
 
 ```{r abstract, child = 'abstract.Rmd'}
 ```
+
+\vfill
+
+\noindent Keywords: Bayesian, brook trout, climate, Portfolio Effect, stream fish, synchrony, weather
+
+\vfill
+
+\noindent This draft manuscript is distributed solely for purposes of scientific peer review. Its content is deliberative and predecisional, so it must not be disclosed or released by reviewers. Because the manuscript has not yet been approved for publication by the U.S. Geological Survey (USGS), it does not represent any official USGS finding or policy.
 
 \newpage
 \pagenumbering{arabic}
@@ -108,7 +122,13 @@ load(file = file.path(run_dir, "tables.rdata"))
 \newpage
 
 # Acknowledgements
-We thank the numerous agencies and organizations that provided the data utilized in this study. Without the hard work of numerous biologists, technicians, and volunteers, this study would not have been possible. This research was funded by Cooperative Agreement No. G21AC10205 from the U.S. Geological Survey Southeast Climate Adaptation Science Center, and Cooperative Agreement No. F20AC11372 from the U.S. Fish and Wildlife Service. The findings and conclusions in this report are those of the authors and do not necessarily represent the views of the U.S. Fish and Wildlife Service.
+We thank the numerous agencies and organizations that provided the data utilized in this study. This research was funded by Cooperative Agreement No. G21AC10205 from the U.S. Geological Survey Southeast Climate Adaptation Science Center, and Cooperative Agreement No. F20AC11372 from the U.S. Fish and Wildlife Service. The findings and conclusions in this report are those of the authors and do not necessarily represent the views of the U.S. Fish and Wildlife Service. 
+
+# Conflict of interest statement
+The authors have no conflicts of interest to declare.
+
+# Data Availability
+Data are archived at sciencebase.gov with DOI 10.5066/P9DQID6G.
 
 \newpage
 

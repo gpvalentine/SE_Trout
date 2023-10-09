@@ -266,7 +266,7 @@ Detect_probs.plot
 
 \newpage
 
-(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): QA_08 = Estimated cumulative runoff (August), VC_08 = Velocity for predicted runoff (August), QE_10 = Gauge flow (October), VE_08 = Velocity for predicted runoff (August), VA_07 = Velocity for annual runoff (July), VA_10 = Velocity for annual runoff (October), PctColluvSedWs = Percent of watershed classified as colluvial sediment, QC_08 = Estimated flow (August), QC_09 = Estimated flow (September), Pathlength = Distance downstream to network end (km).
+(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctDecid2016Ws = Percent of watershed area classified as deciduous forest land cover (2016 NLCD class 41), PctMxFst2016Ws = Percent of watershed area classified as mixed deciduous/evergreen forest land cover (2016 NLCD class 43), WtDepWs = Mean seasonal water table depth (cm) of soils within watershed, PctCrop2016Ws = Percent of watershed area classified as crop land use (2016 NLCD class 82), PctDecid2016Cat = Percent of catchment area classified as deciduous forest land cover (2016 NLCD class 41), PctMxFst2016Cat = Percent of catchment area classified as mixed deciduous/evergreen forest land cover (2016 NLCD class 43), MAXELEVSMO = Maximum elevation (smoothed) of segment, WtDepCat =  Mean seasonal water table depth (cm) of soils within catchment, PrecipCat =  PRISM climate data - Mean precipitation (mm) within the catchment, VE_03 = Velocity for predicted runoff (March).
 
 ```{r YOY-betas-corr-table, message=FALSE, warning=FALSE}
 kbl(YOY_beta_corrs.table,
@@ -285,7 +285,7 @@ YOY_climate_effects_semivariogram.plot
 
 \newpage
 
-(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctShrb2016Ws = Percent of watershed classified as shrub/scrub land cover (2016 NLCD class 52), PermWs = Mean permeability (cm/hour) of soils (STATSGO) within watershed, PctOw2016Cat = Percent of catchment classified as open water land cover (2016 NLCD class 11), VC_11 = Velocity for annual runoff (November), PctNonAgIntrodManagVegWs = Percent nonagricultural nonnative introduced or managed vegetation landcover type reclassed from LANDFIRE Existing Vegetation Type (EVT), within watershed, PctDecid2016Ws = Percent of watershed area classified as deciduous forest land cover (2016 NLCD class 41), MAXELEVRAW = Maximum elevation (unsmoothed) of segment, PermCat = Mean permeability (cm/hour) of soils (STATSGO) within catchment, PctOw2016Ws = Percent of watershed classified as open water land cover (2016 NLCD class 11), StreamLeve = Stream level.
+(ref:YOY-ICCs-corr-table-cap) Top ten correlations between YOY intraclass correlation coefficients (ICCs) and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): OmWs = Mean organic matter content (% by weight) of soils within watershed, MAXELEVSMO = Maximum elevation (smoothed) of segment, ElevCat = Mean catchment elevation in meters, Elev_m = Stream segment elevation in meters, MINELEVRAW = Minimum elevation (unsmoothed) of segment, MINELEVSMO = Minimum elevation (smoothed) of segment, ElevWs = Mean watershed elevation in meters, Pathlength = Distance downstream to network end, OmCat = Mean organic matter content (% by weight) of soils within catchment, VC_02 = Velocity for predicted runoff (February).
 
 ```{r YOY-ICCs-corr-table}
 kbl(YOY_ICC_corrs.table,
@@ -308,17 +308,6 @@ YOY_ICCs_semivariogram.plot
 
 ```{r Adult-ICC-map, fig.cap = "(ref:Adult-ICC-map-cap)"}
 Adult_ICC_map.plot
-```
-
-\newpage
-
-(ref:stock-recruitment-plot-cap) a) Stock-recruitment and b) recruitment-stock relationships for young-of-the-year (YOY) and adult brook trout (*Salvelinus fontinalis*) in the 170 stream segments considered in the present analysis. Black lines represent stream segment-specific relationships, and blue lines represent averaged relationships.
-
-```{r stock-recruitment-plot, fig.cap = "(ref:stock-recruitment-plot-cap)", message=FALSE, warning=FALSE}
-# plot_grid(SSR_2.plot,
-#           SSR_1.plot,
-#           labels = c("a)", "b)"),
-#           nrow = 1)
 ```
 
 \newpage
