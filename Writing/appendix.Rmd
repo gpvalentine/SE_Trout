@@ -8,15 +8,6 @@ output: bookdown::pdf_document2
 \renewcommand{\thetable}{S\arabic{table}}
 \setcounter{table}{0}
 
-```{r agencies-table}
-kbl(agencies.table,
-      col.names = c("Agency", "Date Range", "Years Data"),
-      caption = "Data availability by agency. 'Years Data' indicates temporal coverage within the data range.") %>%
-  kable_styling(latex_options = "HOLD_position")
-```
-
-\newpage
-
 ## Simulation for Missing Data in Correlogram Analysis
 A simulation study was undertaken to evaluate the feasibility of interpreting correlograms created using a dataset with a large percentage of imputed values for missing data. Due to irregular sampling by managers and limited multipass electrofishing data, the time series of yearly brook trout densities was missing 47% of values. We chose to impute these missing values with the mean density in the given segment during the 20 year time period of interest (1995-2015). Here, we simulate spatially-autocorrelated datasets with 0%, 25%, 50%, and 75% missing data, comparing the resulting correlograms.
 
@@ -86,12 +77,12 @@ SimStudy_compound.plot <- plot_grid(plot0, plot25, plot50, plot75,
 SimStudy_compound.plot
 ```
 
-Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 44% missing data with site mean density does not considerably effect interpretations of the magnitude or scale of spatial synchrony.  
+Comparing the four simulations, we see that the 95% confidence interval grows when increasing amounts of missing data are imputed with means. Mean pairwise correlation estimates do not significantly differ between the first three simulations (0%: `r round(m0.summary$Regional.synch, 2)`, (`r round(m0.summary$Squantile[[2]], 2)`, `r round(m0.summary$Squantile[[6]], 2)`), 25%: `r round(m25.summary$Regional.synch, 2)`, (`r round(m25.summary$Squantile[[2]], 2)`, `r round(m25.summary$Squantile[[6]], 2)`), 50%: `r round(m50.summary$Regional.synch, 2)`, (`r round(m50.summary$Squantile[[2]], 2)`, `r round(m50.summary$Squantile[[6]], 2)`)). Neither do estimates of the distance at which pairwise correlation reaches 0 (0%: `r round(m0.summary$estimates[1,1], 2)`, (`r round(m0.summary$quantiles[2,1], 2)`, `r round(m0.summary$quantiles[6,1], 2)`), 25%: `r round(m25.summary$estimates[1,1], 2)`, (`r round(m25.summary$quantiles[2,1], 2)`, `r round(m25.summary$quantiles[6,1], 2)`), 50%: `r round(m50.summary$estimates[1,1], 2)`, (`r round(m50.summary$quantiles[2,1], 2)`, `r round(m50.summary$quantiles[6,1], 2)`)). We take this as evidence that imputing 44% missing data with site mean density does not considerably affect inferences on the magnitude or scale of spatial synchrony.  
 
 \newpage
 
 ## Simulation for Combined Model
-We developed a simulation to evaluate the identifiability of a model with both climate effects and random effects. We simulated 3-pass electrofishing data for 100 stream segments over 20 years, and evaluated with an an N-mixture model using a removal mechanism coupled with a log linear process model. We simulated one spatially heterogeneous climate covariate and both temporal and spatiotemporal random effects. Detection probability was the same for all simulated stream segments.
+We developed a simulation to evaluate the identifiability of a model with both climate effects and random effects. We simulated 3-pass electrofishing data for 100 stream segments over 20 years, and evaluated with an an N-mixture model using a removal mechanism coupled with a log linear process model. We simulated one spatially heterogeneous climate covariate and both temporal and spatiotemporal random effects. Capture probability was the same for all simulated stream segments.
 
 ```{r CombinedModel_Sim, eval=F, echo=TRUE, message=FALSE, warning=FALSE}
 
@@ -230,9 +221,12 @@ CombinedModel_Sim.plot
 
 \newpage
 
-## Code {-}
-
-Code can be found online at github.com/gpvalentine/SE_Trout.
+```{r agencies-table}
+kbl(agencies.table,
+      col.names = c("Agency", "Date Range", "Years Data"),
+      caption = "Data availability by agency. 'Years Data' indicates temporal coverage within the data range.") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
 
 \newpage
 
@@ -250,7 +244,7 @@ precip_sites_map.plot
 
 \newpage
 
-(ref:detect-probs-cap) Per-pass electrofishing capture probability by agency. A combination of single- and multi-pass sampling methods (single: `r round(passes_pcts.table[1,3], 1)`%, multi: `r round(passes_pcts.table[2,3], 1)`%) were employed following standardized sampling protocols for the southern US region [@sdafstroutcommittee1992]. In multi-pass sampling, fish were removed from the stream in successive passes in temporarily blocked stream reaches to estimate capture probability and thus population size. Sampling boundaries were defined by block nets or cobble dams which serve as barriers for fish movement. Depending on stream width, one to three backpack electrofishing units were used.
+(ref:detect-probs-cap) Per-pass electrofishing capture probability by agency. A combination of single- and multi-pass sampling methods (single: `r round(passes_pcts.table[1,3], 0)`%, multi: `r round(passes_pcts.table[2,3], 0)`%) were employed following standardized sampling protocols for the southern US region [@sdafstroutcommittee1992]. In multi-pass sampling, fish were removed from the stream in successive passes in temporarily blocked stream reaches to estimate capture probability and thus population size. Sampling boundaries were defined by block nets or cobble dams which serve as barriers for fish movement. Depending on stream width, one to three backpack electrofishing units were used.
 
 ```{r detect-probs, fig.cap = "(ref:detect-probs-cap)"}
 Detect_probs.plot
@@ -266,18 +260,19 @@ Detect_probs.plot
 
 \newpage
 
-(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctDecid2016Ws = Percent of watershed area classified as deciduous forest land cover (2016 NLCD class 41), PctMxFst2016Ws = Percent of watershed area classified as mixed deciduous/evergreen forest land cover (2016 NLCD class 43), WtDepWs = Mean seasonal water table depth (cm) of soils within watershed, PctCrop2016Ws = Percent of watershed area classified as crop land use (2016 NLCD class 82), PctDecid2016Cat = Percent of catchment area classified as deciduous forest land cover (2016 NLCD class 41), PctMxFst2016Cat = Percent of catchment area classified as mixed deciduous/evergreen forest land cover (2016 NLCD class 43), MAXELEVSMO = Maximum elevation (smoothed) of segment, WtDepCat =  Mean seasonal water table depth (cm) of soils within catchment, PrecipCat =  PRISM climate data - Mean precipitation (mm) within the catchment, VE_03 = Velocity for predicted runoff (March).
+(ref:YOY-betas-corr-table-cap) Top ten correlations between climate covariates and local habitat. Correlations were tested for 182 segment, catchment, and watershed characteristics accessed from the USGS NHDplus and EPA StreamCat database. Abbreviations (descriptions from sources): PctDecid2016Ws = Percent of watershed area classified as deciduous forest land cover (2016 NLCD class 41), PctMxFst2016Ws = Percent of watershed area classified as mixed deciduous/evergreen forest land cover (2016 NLCD class 43), WtDepWs = Mean seasonal water table depth (cm) of soils within watershed, PctCrop2016Ws = Percent of watershed area classified as crop land use (2016 NLCD class 82), PctDecid2016Cat = Percent of catchment area classified as deciduous forest land cover (2016 NLCD class 41), PctMxFst2016Cat = Percent of catchment area classified as mixed deciduous/evergreen forest land cover (2016 NLCD class 43), MAXELEVSMO = Maximum elevation (smoothed) of segment, WtDepCat =  Mean seasonal water table depth (cm) of soils within catchment, PrecipCat =  PRISM climate data - Mean precipitation (mm) within the catchment, VE_03 = Velocity for gauge-adjusted predicted runoff (March).
 
 ```{r YOY-betas-corr-table, message=FALSE, warning=FALSE}
 kbl(YOY_beta_corrs.table,
-      row.names = F,
-      col.names = c("Climate Covariate", "Local Habitat Variable", "Spearman Correlation"),
-      caption = "(ref:YOY-betas-corr-table-cap)")
+    row.names = F,
+    col.names = c("Climate Covariate", "Local Habitat Variable", "Spearman Correlation"),
+    caption = "(ref:YOY-betas-corr-table-cap)",
+    digits = 3)
 ```
 
 \newpage
 
-(ref:YOY-climate-effects-semivariogram-plot-cap) Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout (*Salvelinus fontinalis*). If spatial structure is present, nearer values will have lover semivariance than farther values. Climate variables include: average 0.9Q summer air temperature (year t-1), max 0.9Q winter stream flow (year t), and max 0.9Q spring stream flow (year t). DD = Decimal degrees.
+(ref:YOY-climate-effects-semivariogram-plot-cap) Semivariogram depicting spatial structure in stream segment-specific climate effects on abundance of young-of-year brook trout (*Salvelinus fontinalis*). If spatial structure is present, nearer values have lower semivariance values than those farther apart. Climate variables include: average 0.9Q summer air temperature (year t-1), max 0.9Q winter stream flow (year t), and max 0.9Q spring stream flow (year t). DD = Decimal degrees.
 
 ```{r YOY-climate-effects-semivariogram-plot, fig.cap = "(ref:YOY-climate-effects-semivariogram-plot-cap)"}
 YOY_climate_effects_semivariogram.plot
@@ -289,14 +284,15 @@ YOY_climate_effects_semivariogram.plot
 
 ```{r YOY-ICCs-corr-table}
 kbl(YOY_ICC_corrs.table,
-      row.names = F,
-      col.names = c("Local Habitat\nVariable", "Spearman Correlation"),
-      caption = "(ref:YOY-ICCs-corr-table-cap)")
+    row.names = F,
+    col.names = c("Local Habitat\nVariable", "Spearman Correlation"),
+    caption = "(ref:YOY-ICCs-corr-table-cap)",
+    digits = 3)
 ```
 
 \newpage
 
-(ref:YOY-ICC-semivariogram-plot-cap) Semivariogram depicting spatial structure in stream segment-specific intraclass correlation coefficients (ICCs) of abundance of young-of-year brook trout (*Salvelinus fontinalis*). If spatial structure is present, nearer values will have lower semivariance than farther values. DD = Decimal degrees.
+(ref:YOY-ICC-semivariogram-plot-cap) Semivariogram depicting spatial structure in stream segment-specific intraclass correlation coefficients (ICCs) of abundance of young-of-year brook trout (*Salvelinus fontinalis*). If spatial structure is present, nearer values have lower semivariance values than those farther apart. DD = Decimal degrees.
 
 ```{r YOY-ICC-semivariogram-plot, fig.cap="(ref:YOY-ICC-semivariogram-plot-cap)"}
 YOY_ICCs_semivariogram.plot
