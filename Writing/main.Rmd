@@ -127,10 +127,7 @@ The authors have no conflicts of interest to declare.
 # Data Availability
 Data are archived at sciencebase.gov with DOI 10.5066/P9DQID6G.
 
-\newpage
-
 # Code
-
 Code can be found online at github.com/gpvalentine/SE_Trout.
 
 \newpage
